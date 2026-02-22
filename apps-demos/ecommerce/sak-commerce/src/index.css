@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-axis-primary text-axis-secondary font-sans antialiased;
+}
+
+::selection {
+  @apply bg-axis-accent/25 text-axis-secondary;
+}
+
+.axis-container {
+  @apply container mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}

@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        @apply bg-canvas text-text-main antialiased;
+    }
+}
+
+@layer components {
+    .ui-page {
+        @apply bg-canvas text-text-main min-h-screen;
+    }
+
+    .ui-card {
+        @apply bg-white rounded-card shadow-soft border border-surface-border transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-soft-lg;
+    }
+
+    .ui-card-elevated {
+        @apply bg-white rounded-card shadow-soft-lg border border-surface-border;
+    }
+
+    .ui-input {
+        @apply w-full min-h-[44px] bg-white rounded-control border border-surface-border px-3 py-2 text-base text-text-main shadow-inset-soft placeholder:text-text-muted/70 focus:border-brand-purple focus:outline-none focus:ring-2 focus:ring-brand-purple-soft;
+    }
+
+    .ui-btn-primary {
+        @apply inline-flex min-h-[44px] items-center justify-center rounded-control bg-brand-navy px-4 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-brand-purple hover:shadow-soft-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple-soft active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none;
+    }
+
+    .ui-btn-secondary {
+        @apply inline-flex min-h-[44px] items-center justify-center rounded-control border border-surface-border bg-white px-4 py-3 text-sm font-semibold text-text-main shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple-soft active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60;
+    }
+
+    .ui-btn-ghost {
+        @apply inline-flex min-h-[44px] items-center justify-center rounded-control px-4 py-3 text-sm font-semibold text-text-main transition hover:bg-brand-purple-soft/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple-soft active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60;
+    }
+
+    .ui-badge {
+        @apply inline-flex items-center rounded-full bg-brand-purple-soft px-3 py-1 text-xs font-semibold text-brand-navy;
+    }
+
+    .ui-table-wrap {
+        @apply overflow-x-auto rounded-card border border-surface-border bg-white;
+    }
+
+    .ui-table {
+        @apply w-full text-left text-sm;
+    }
+
+    .ui-table thead {
+        @apply bg-gray-50 border-b border-surface-border text-xs uppercase text-text-muted;
+    }
+
+    .ui-table th {
+        @apply px-3 py-3 text-left;
+    }
+
+    .ui-table td {
+        @apply px-3 py-3 align-top;
+    }
+
+    .ui-th {
+        @apply px-3 py-2 text-left;
+    }
+
+    .ui-td {
+        @apply px-3 py-2 align-top;
+    }
+
+    .ui-table tbody tr {
+        @apply border-b border-surface-border transition;
+    }
+
+    .ui-row-hover:hover {
+        @apply bg-brand-purple-soft/10;
+    }
+
+    .ui-sidebar-item {
+        @apply flex min-h-[44px] items-center gap-3 rounded-control px-4 py-3 text-sm font-semibold text-white/80 transition hover:bg-brand-purple-soft/15;
+    }
+
+    .ui-sidebar-item-active {
+        @apply bg-white/10 text-white shadow-soft;
+    }
+
+    .ui-inline-action {
+        @apply inline-flex min-h-[36px] items-center rounded-md px-2 py-1 text-sm font-semibold transition;
+    }
+
+    .ui-inline-action-primary {
+        @apply ui-inline-action text-brand-navy hover:bg-brand-purple-soft/25;
+    }
+
+    .ui-inline-action-danger {
+        @apply ui-inline-action text-red-600 hover:bg-red-50;
+    }
+}
+
+@media (max-width: 767px) {
+    .ui-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .ui-table,
+    .ui-table tbody,
+    .ui-table tr,
+    .ui-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .ui-table tr {
+        border-bottom: 1px solid rgba(228, 231, 238, 1);
+        padding: 6px 0;
+    }
+
+    .ui-table tr:last-child {
+        border-bottom: none;
+    }
+
+    .ui-table td {
+        border-bottom: 1px dashed rgba(228, 231, 238, 0.9);
+        padding: 10px 12px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .ui-table td:last-child {
+        border-bottom: none;
+    }
+
+    .ui-table td::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #52607a;
+        flex: 1 1 100%;
+    }
+}

@@ -1,0 +1,65 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+
+# Node / frontend
+**/node_modules/
+**/dist/
+**/.nuxt/
+**/.next/
+**/.svelte-kit/
+**/.angular/
+**/.astro/
+**/.vite/
+**/.cache/
+**/coverage/
+**/.nyc_output/
+**/*.tsbuildinfo
+
+# PHP / Laravel
+**/vendor/
+**/storage/*.key
+**/storage/logs/
+**/storage/framework/cache/
+**/storage/framework/sessions/
+**/storage/framework/testing/
+**/storage/framework/views/
+**/bootstrap/cache/*.php
+
+# Build / temp
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Archive / binaries
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Optional local data
+database.sqlite
+**/database/database.sqlite

@@ -1,0 +1,21 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="210" y1="10" x2="1700" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#ECFDF5"/>
+    </linearGradient>
+    <linearGradient id="tower" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#CBD5E1" stop-opacity="0.65"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <rect x="70" y="340" width="180" height="740" fill="url(#tower)"/>
+  <rect x="300" y="260" width="260" height="820" fill="url(#tower)"/>
+  <rect x="610" y="310" width="220" height="770" fill="url(#tower)"/>
+  <rect x="870" y="190" width="300" height="890" fill="url(#tower)"/>
+  <rect x="1220" y="290" width="230" height="790" fill="url(#tower)"/>
+  <rect x="1490" y="240" width="270" height="840" fill="url(#tower)"/>
+  <rect x="1780" y="370" width="120" height="710" fill="url(#tower)"/>
+  <rect y="880" width="1920" height="200" fill="#10B981" fill-opacity="0.12"/>
+</svg>

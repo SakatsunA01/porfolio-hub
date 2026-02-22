@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+    .ui-page {
+        @apply bg-canvas text-text-main min-h-screen;
+    }
+
+    .ui-card {
+        @apply bg-white rounded-card shadow-soft border border-surface-border transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-soft-lg;
+    }
+
+    .ui-card-elevated {
+        @apply bg-white rounded-card shadow-soft-lg border border-surface-border;
+    }
+
+    .ui-input {
+        @apply w-full bg-white rounded-control shadow-inset-soft border border-surface-border text-text-main placeholder:text-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-purple-soft focus:border-brand-purple;
+    }
+
+    .ui-btn-primary {
+        @apply inline-flex items-center justify-center rounded-control bg-brand-navy text-white font-semibold shadow-soft px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-soft-lg hover:bg-brand-purple focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple-soft active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none;
+    }
+
+    .ui-btn-secondary {
+        @apply inline-flex items-center justify-center rounded-control border border-surface-border bg-white text-text-main font-semibold shadow-sm px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple-soft active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed;
+    }
+
+    .ui-btn-ghost {
+        @apply inline-flex items-center justify-center rounded-control px-4 py-3 text-sm font-semibold text-text-main transition hover:bg-brand-purple-soft/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple-soft active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed;
+    }
+
+    .ui-badge {
+        @apply inline-flex items-center rounded-full bg-brand-purple-soft px-3 py-1 text-xs font-semibold text-brand-navy;
+    }
+
+    .ui-table-wrap {
+        @apply overflow-x-auto;
+    }
+
+    .ui-table {
+        @apply w-full text-left text-sm;
+    }
+
+    .ui-table thead {
+        @apply bg-gray-50 border-b border-surface-border text-xs uppercase text-text-muted;
+    }
+
+    .ui-table th {
+        @apply px-3 py-2 text-left;
+    }
+
+    .ui-table td {
+        @apply px-3 py-2 align-top;
+    }
+
+    .ui-th {
+        @apply px-3 py-2 text-left;
+    }
+
+    .ui-td {
+        @apply px-3 py-2 align-top;
+    }
+
+    .ui-table tbody tr {
+        @apply border-b border-surface-border transition;
+    }
+
+    .ui-row-hover:hover {
+        @apply bg-brand-purple-soft/10;
+    }
+
+    .ui-sidebar-item {
+        @apply flex items-center gap-3 rounded-control px-4 py-3 text-sm font-semibold text-white/80 hover:bg-brand-purple-soft/15 transition;
+    }
+
+    .ui-sidebar-item-active {
+        @apply bg-white/10 text-white shadow-soft;
+    }
+}

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Delivery App Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="kicker">Demo Operativa</p>
+          <h1>Delivery App | Centro de Operaciones</h1>
+        </div>
+        <div class="topbar-actions">
+          <p class="status-pill">Modo Demo | Sin tracking en vivo</p>
+          <button id="resetDemoBtn" class="secondary danger-lite" type="button">Reset Demo</button>
+        </div>
+      </header>
+
+      <section class="kpi-grid" id="kpiGrid"></section>
+
+      <nav class="role-tabs" id="roleTabs">
+        <button class="role-tab active" data-role="admin">Administrador</button>
+        <button class="role-tab" data-role="employee">Empleado</button>
+        <button class="role-tab" data-role="driver">Repartidor</button>
+        <button class="role-tab" data-role="client">Cliente</button>
+      </nav>
+
+      <main>
+        <section id="adminView" class="view active"></section>
+        <section id="employeeView" class="view"></section>
+        <section id="driverView" class="view"></section>
+        <section id="clientView" class="view"></section>
+      </main>
+    </div>
+
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
+
+    <template id="adminTemplate">
+      <div class="grid-2">
+        <article class="card">
+          <h2>Catalogo de Productos</h2>
+          <p class="muted">Define lo que se vende y el tiempo estimado de preparacion.</p>
+          <form id="addProductForm" class="inline-form">
+            <input name="name" type="text" placeholder="Producto" required />
+            <input name="price" type="number" min="1" placeholder="Precio" required />
+            <input name="prep" type="number" min="1" placeholder="Prep min" required />
+            <button type="submit">Agregar</button>
+          </form>
+          <div id="productList"></div>
+        </article>
+
+        <article class="card">
+          <h2>Equipo</h2>
+          <p class="muted">Alta y control de empleados y repartidores.</p>
+          <div class="mini-grid">
+            <form id="addEmployeeForm" class="inline-form">
+              <input name="name" type="text" placeholder="Nombre empleado" required />
+              <button type="submit">Agregar empleado</button>
+            </form>
+            <div id="employeeList"></div>
+          </div>
+          <div class="mini-grid">
+            <form id="addDriverForm" class="inline-form">
+              <input name="name" type="text" placeholder="Nombre repartidor" required />
+              <button type="submit">Agregar repartidor</button>
+            </form>
+            <div id="driverList"></div>
+          </div>
+        </article>
+      </div>
+
+      <article class="card">
+        <h2>Pedidos y Asignaciones</h2>
+        <p class="muted">Asigna responsable de cocina y repartidor para cada pedido.</p>
+        <div id="adminOrders"></div>
+      </article>
+    </template>
+
+    <template id="employeeTemplate">
+      <article class="card">
+        <h2>Pedidos para Preparar</h2>
+        <p class="muted">Aqui el equipo de cocina ve y gestiona los pedidos entrantes.</p>
+        <div class="inline-form">
+          <label for="employeeShift">Empleado en turno</label>
+          <select id="employeeShift"></select>
+        </div>
+        <div id="employeeOrders"></div>
+      </article>
+    </template>
+
+    <template id="driverTemplate">
+      <article class="card">
+        <h2>Ruta de Despacho</h2>
+        <p class="muted">Pedidos listos para salir y entregas en curso.</p>
+        <div class="inline-form">
+          <label for="driverShift">Repartidor en turno</label>
+          <select id="driverShift"></select>
+          <button id="takeRouteBtn" type="button">Tomar ruta de listos</button>
+        </div>
+        <div id="driverOrders"></div>
+      </article>
+    </template>
+
+    <template id="clientTemplate">
+      <article class="card client-hero">
+        <h2>Hace tu pedido</h2>
+        <p>Experiencia estilo app de delivery: simple, rapida y clara.</p>
+      </article>
+
+      <div class="grid-2">
+        <article class="card">
+          <h3>Nuevo Pedido</h3>
+          <form id="createOrderForm">
+            <div class="field">
+              <label>Nombre</label>
+              <input name="customer" type="text" required placeholder="Tu nombre" />
+            </div>
+            <div class="field">
+              <label>Direccion</label>
+              <input name="address" type="text" required placeholder="Calle 1234" />
+            </div>
+            <div class="field">
+              <label>Productos</label>
+              <div id="clientProductPicker"></div>
+            </div>
+            <button type="submit">Confirmar pedido</button>
+          </form>
+        </article>
+
+        <article class="card">
+          <h3>Estado de tus pedidos</h3>
+          <div class="field">
+            <label>Buscar por nombre</label>
+            <input id="clientLookup" type="text" placeholder="Ej: Juan Perez" />
+          </div>
+          <div id="clientOrders"></div>
+        </article>
+      </div>
+    </template>
+
+    <script type="module" src="./script.js"></script>
+  </body>
+</html>
