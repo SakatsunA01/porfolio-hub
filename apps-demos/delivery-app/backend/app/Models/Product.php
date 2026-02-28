@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -13,6 +14,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
 class Product extends Model implements HasMedia
 {
     use HasFactory;
+    use BelongsToTenant;
     use InteractsWithMedia;
     use SoftDeletes;
 
@@ -20,6 +22,7 @@ class Product extends Model implements HasMedia
         'name',
         'description',
         'category',
+        'tenant_id',
         'base_price',
         'prep_min',
         'stock_quantity',

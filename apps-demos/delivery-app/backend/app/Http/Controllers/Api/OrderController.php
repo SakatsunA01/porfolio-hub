@@ -9,6 +9,7 @@ use App\Models\CustomerProfile;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Tenant;
 use App\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,13 +21,35 @@ class OrderController extends Controller
 {
     public function index(): JsonResponse
     {
-        return response()->json(
-            Order::query()->latest()->get()
-        );
+        $user = request()->user();
+        $tenantId = $this->resolveTenantId();
+        $role = $user?->roleModel?->name ?? $user?->role;
+
+        $query = Order::query()->latest();
+        $this->scopeQueryByTenant($query, $tenantId);
+
+        if ($role === 'client') {
+            $query->where('customer', $user?->name ?? '__no_customer__');
+        } elseif ($role === 'employee') {
+            $query->where(function ($builder) use ($user) {
+                $builder
+                    ->where('employee_id', $user?->id)
+                    ->orWhereIn('status', ['pendiente', 'preparando', 'listo']);
+            });
+        } elseif ($role === 'driver') {
+            $query->where(function ($builder) use ($user) {
+                $builder
+                    ->where('driver_id', $user?->id)
+                    ->orWhere('status', 'listo');
+            });
+        }
+
+        return response()->json($query->get());
     }
 
     public function store(Request $request): JsonResponse
     {
+        $tenantId = $this->resolveTenantId();
         $data = $request->validate([
             'customer' => ['required', 'string', 'max:255'],
             'address' => ['required', 'string', 'max:255'],
@@ -54,7 +77,9 @@ class OrderController extends Controller
             ->values();
 
         $customerKey = mb_strtolower(trim((string) $data['customer']));
-        $profile = CustomerProfile::query()->where('customer_key', $customerKey)->first();
+        $profileQuery = CustomerProfile::query()->where('customer_key', $customerKey);
+        $this->scopeQueryByTenant($profileQuery, $tenantId);
+        $profile = $profileQuery->first();
         if ($profile?->is_blocked) {
             throw ValidationException::withMessages([
                 'customer' => ['Este cliente esta bloqueado temporalmente.'],
@@ -73,11 +98,12 @@ class OrderController extends Controller
             $changeAmount = round($cashReceived - $total, 2);
         }
 
-        $order = DB::transaction(function () use ($data, $paymentMethod, $normalizedItems, $subtotal, $extrasTotal, $total, $cashReceived, $changeAmount, $etaMin) {
+        $order = DB::transaction(function () use ($data, $paymentMethod, $normalizedItems, $subtotal, $extrasTotal, $total, $cashReceived, $changeAmount, $etaMin, $tenantId, $customerKey, $request) {
             $stockDemand = $this->collectProductStockDemand($normalizedItems->toArray());
             $this->reserveStockOrFail($stockDemand);
 
             $order = Order::query()->create([
+                'tenant_id' => $tenantId,
                 'customer' => $data['customer'],
                 'address' => $data['address'],
                 'payment_method' => $paymentMethod,
@@ -94,7 +120,7 @@ class OrderController extends Controller
 
             $this->createOrderItemSnapshots($order, $normalizedItems->toArray());
             CustomerProfile::query()->updateOrCreate(
-                ['customer_key' => $customerKey],
+                ['tenant_id' => $tenantId, 'customer_key' => $customerKey],
                 [
                     'display_name' => $data['customer'],
                     'last_address' => $data['address'],
@@ -115,6 +141,10 @@ class OrderController extends Controller
 
     public function updateStatus(Request $request, Order $order): JsonResponse
     {
+        if (!$this->belongsToCurrentTenant($order->tenant_id)) {
+            return response()->json(['message' => 'Pedido fuera del tenant actual.'], 403);
+        }
+
         $data = $request->validate([
             'status' => ['required', 'string', Rule::in(['pendiente', 'preparando', 'listo', 'en_camino', 'entregado', 'cancelado', 'rechazado'])],
             'employee_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
@@ -138,6 +168,10 @@ class OrderController extends Controller
 
     public function update(Request $request, Order $order): JsonResponse
     {
+        if (!$this->belongsToCurrentTenant($order->tenant_id)) {
+            return response()->json(['message' => 'Pedido fuera del tenant actual.'], 403);
+        }
+
         $data = $request->validate([
             'customer' => ['sometimes', 'required', 'string', 'max:255'],
             'address' => ['sometimes', 'required', 'string', 'max:255'],
@@ -199,6 +233,10 @@ class OrderController extends Controller
 
     public function updatePayment(Request $request, Order $order): JsonResponse
     {
+        if (!$this->belongsToCurrentTenant($order->tenant_id)) {
+            return response()->json(['message' => 'Pedido fuera del tenant actual.'], 403);
+        }
+
         $data = $request->validate([
             'payment_status' => ['required', Rule::in(['pending', 'paid', 'refunded'])],
             'cash_received' => ['nullable', 'numeric', 'min:0'],
@@ -250,6 +288,12 @@ class OrderController extends Controller
                 'ingredients' => fn ($query) => $query->where('ingredients.is_active', true),
                 'extras' => fn ($query) => $query->where('is_active', true),
             ])
+            ->where(function ($query) {
+                $tenantId = $this->resolveTenantId();
+                if ($tenantId > 0) {
+                    $query->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+                }
+            })
             ->findOrFail($productId);
 
         return $this->buildSingleProductOrderItem($product, $qty, $item);
@@ -303,6 +347,12 @@ class OrderController extends Controller
                 'products.ingredients' => fn ($query) => $query->where('ingredients.is_active', true),
                 'products.extras' => fn ($query) => $query->where('is_active', true),
             ])
+            ->where(function ($query) {
+                $tenantId = $this->resolveTenantId();
+                if ($tenantId > 0) {
+                    $query->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+                }
+            })
             ->findOrFail($comboId);
 
         $subItemsInput = collect($item['sub_items'] ?? [])->keyBy(fn ($row) => (int) ($row['product_id'] ?? 0));
@@ -354,7 +404,15 @@ class OrderController extends Controller
 
     private function buildBundleOrderItem(int $bundleId, int $qty): array
     {
-        $bundle = Bundle::query()->with('products')->findOrFail($bundleId);
+        $bundle = Bundle::query()
+            ->with('products')
+            ->where(function ($query) {
+                $tenantId = $this->resolveTenantId();
+                if ($tenantId > 0) {
+                    $query->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+                }
+            })
+            ->findOrFail($bundleId);
 
         $productsSubtotalPerUnit = 0.0;
         $prepWeight = 0;
@@ -519,5 +577,48 @@ class OrderController extends Controller
             'entity_id' => $entityId,
             'metadata' => $metadata,
         ]);
+    }
+
+    private function resolveTenantId(): int
+    {
+        $userTenantId = (int) (request()->user()?->tenant_id ?? 0);
+        if ($userTenantId > 0) {
+            return $userTenantId;
+        }
+
+        $tenantSlug = trim((string) (request()->query('tenant_slug') ?: request()->header('X-Tenant-Slug') ?: ''));
+        if ($tenantSlug !== '') {
+            $tenantBySlug = Tenant::query()
+                ->where('slug', $tenantSlug)
+                ->where('is_active', true)
+                ->first();
+
+            if ($tenantBySlug) {
+                return (int) $tenantBySlug->id;
+            }
+        }
+
+        $tenant = Tenant::query()->where('is_active', true)->orderBy('id')->first();
+        return (int) ($tenant?->id ?? 0);
+    }
+    private function scopeQueryByTenant($query, int $tenantId): void
+    {
+        if ($tenantId <= 0) {
+            return;
+        }
+
+        $query->where(function ($tenantQuery) use ($tenantId) {
+            $tenantQuery->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+        });
+    }
+
+    private function belongsToCurrentTenant(?int $resourceTenantId): bool
+    {
+        $tenantId = $this->resolveTenantId();
+        if ($tenantId <= 0) {
+            return true;
+        }
+
+        return (int) ($resourceTenantId ?? $tenantId) === $tenantId;
     }
 }

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\ComboController;
 use App\Http\Controllers\Api\BundleController;
+use App\Http\Controllers\Api\DailyMenuController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\CustomerProfileController;
 use App\Http\Controllers\Api\ExtraController;
@@ -10,6 +11,8 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\SuperAdminController;
+use App\Http\Controllers\Api\StorefrontController;
 use App\Http\Controllers\Api\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +32,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/google', [AuthController::class, 'googleLogin']);
 
 Route::get('/health', function () {
     return response()->json([
@@ -38,6 +42,7 @@ Route::get('/health', function () {
     ]);
 });
 
+Route::get('/storefront/{slug}', [StorefrontController::class, 'show']);
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{product}', [ProductController::class, 'show']);
 Route::get('/combos', [ComboController::class, 'index']);
@@ -46,10 +51,10 @@ Route::get('/bundles', [BundleController::class, 'index']);
 Route::get('/bundles/{bundle}', [BundleController::class, 'show']);
 Route::get('/ingredients', [IngredientController::class, 'index']);
 Route::get('/extras', [ExtraController::class, 'index']);
-Route::post('/orders', [OrderController::class, 'store']);
+Route::get('/daily-menus/active', [DailyMenuController::class, 'active']);
 Route::get('/roles', [RoleController::class, 'index']);
 
-Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::post('/products', [ProductController::class, 'store']);
     Route::post('/products/bulk/price', [ProductController::class, 'bulkUpdatePrices']);
     Route::put('/products/{product}', [ProductController::class, 'update']);
@@ -88,11 +93,27 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::post('/customers/block', [CustomerProfileController::class, 'block']);
     Route::post('/customers/unblock', [CustomerProfileController::class, 'unblock']);
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
+
+    Route::get('/daily-menus', [DailyMenuController::class, 'index']);
+    Route::post('/daily-menus', [DailyMenuController::class, 'store']);
+    Route::put('/daily-menus/{dailyMenu}', [DailyMenuController::class, 'update']);
+    Route::delete('/daily-menus/{dailyMenu}', [DailyMenuController::class, 'destroy']);
+    Route::post('/daily-menus/{dailyMenu}/items', [DailyMenuController::class, 'upsertItem']);
+    Route::delete('/daily-menus/{dailyMenu}/items/{item}', [DailyMenuController::class, 'removeItem']);
+});
+
+Route::middleware(['auth:sanctum', 'role:superadmin'])->prefix('superadmin')->group(function () {
+    Route::get('/tenants', [SuperAdminController::class, 'tenants']);
+    Route::post('/tenants', [SuperAdminController::class, 'storeTenant']);
+    Route::put('/tenants/{tenant}', [SuperAdminController::class, 'updateTenant']);
+    Route::get('/tenants/{tenant}/users', [SuperAdminController::class, 'tenantUsers']);
+    Route::post('/tenants/{tenant}/users', [SuperAdminController::class, 'storeTenantUser']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::post('/orders', [OrderController::class, 'store'])->middleware('role:client,admin');
     Route::get('/orders', [OrderController::class, 'index']);
-    Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
+    Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus'])->middleware('role:admin,employee,driver');
 });

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CustomerProfile;
 use App\Models\Order;
+use App\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,11 +14,15 @@ class CustomerProfileController extends Controller
 {
     public function index(): JsonResponse
     {
-        $profiles = CustomerProfile::query()
+        $tenantId = $this->resolveTenantId();
+
+        $profilesQuery = CustomerProfile::query();
+        $this->scopeQueryByTenant($profilesQuery, $tenantId);
+        $profiles = $profilesQuery
             ->get()
             ->keyBy('customer_key');
 
-        $stats = Order::query()
+        $ordersQuery = Order::query()
             ->selectRaw("LOWER(TRIM(customer)) as customer_key")
             ->selectRaw('MAX(customer) as customer_name')
             ->selectRaw('MAX(address) as last_address')
@@ -26,7 +31,10 @@ class CustomerProfileController extends Controller
             ->selectRaw('MAX(created_at) as last_order_at')
             ->groupBy(DB::raw('LOWER(TRIM(customer))'))
             ->orderByDesc('total_spent')
-            ->limit(200)
+            ->limit(200);
+        $this->scopeQueryByTenant($ordersQuery, $tenantId);
+
+        $stats = $ordersQuery
             ->get()
             ->map(function ($row, int $index) use ($profiles) {
                 $profile = $profiles->get($row->customer_key);
@@ -50,6 +58,7 @@ class CustomerProfileController extends Controller
 
     public function upsert(Request $request): JsonResponse
     {
+        $tenantId = $this->resolveTenantId();
         $data = $request->validate([
             'customer_key' => ['required', 'string', 'max:255'],
             'display_name' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -59,7 +68,10 @@ class CustomerProfileController extends Controller
         ]);
 
         $profile = CustomerProfile::query()->updateOrCreate(
-            ['customer_key' => mb_strtolower(trim($data['customer_key']))],
+            [
+                'tenant_id' => $tenantId > 0 ? $tenantId : null,
+                'customer_key' => mb_strtolower(trim($data['customer_key'])),
+            ],
             [
                 'display_name' => $data['display_name'] ?? $data['customer_key'],
                 'last_address' => $data['last_address'] ?? null,
@@ -73,6 +85,7 @@ class CustomerProfileController extends Controller
 
     public function block(Request $request): JsonResponse
     {
+        $tenantId = $this->resolveTenantId();
         $data = $request->validate([
             'customer_key' => ['required', 'string', 'max:255'],
             'display_name' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -80,7 +93,10 @@ class CustomerProfileController extends Controller
         ]);
 
         $profile = CustomerProfile::query()->updateOrCreate(
-            ['customer_key' => mb_strtolower(trim($data['customer_key']))],
+            [
+                'tenant_id' => $tenantId > 0 ? $tenantId : null,
+                'customer_key' => mb_strtolower(trim($data['customer_key'])),
+            ],
             [
                 'display_name' => $data['display_name'] ?? $data['customer_key'],
                 'is_blocked' => true,
@@ -93,13 +109,15 @@ class CustomerProfileController extends Controller
 
     public function unblock(Request $request): JsonResponse
     {
+        $tenantId = $this->resolveTenantId();
         $data = $request->validate([
             'customer_key' => ['required', 'string', 'max:255'],
         ]);
 
-        $profile = CustomerProfile::query()
-            ->where('customer_key', mb_strtolower(trim($data['customer_key'])))
-            ->first();
+        $profileQuery = CustomerProfile::query()
+            ->where('customer_key', mb_strtolower(trim($data['customer_key'])));
+        $this->scopeQueryByTenant($profileQuery, $tenantId);
+        $profile = $profileQuery->first();
 
         if ($profile) {
             $profile->update([
@@ -110,5 +128,38 @@ class CustomerProfileController extends Controller
         return response()->json([
             'message' => 'Cliente desbloqueado.',
         ]);
+    }
+
+    private function resolveTenantId(): int
+    {
+        $userTenantId = (int) (request()->user()?->tenant_id ?? 0);
+        if ($userTenantId > 0) {
+            return $userTenantId;
+        }
+
+        $tenantSlug = trim((string) (request()->query('tenant_slug') ?: request()->header('X-Tenant-Slug') ?: ''));
+        if ($tenantSlug !== '') {
+            $tenantBySlug = Tenant::query()
+                ->where('slug', $tenantSlug)
+                ->where('is_active', true)
+                ->first();
+
+            if ($tenantBySlug) {
+                return (int) $tenantBySlug->id;
+            }
+        }
+
+        $tenant = Tenant::query()->where('is_active', true)->orderBy('id')->first();
+        return (int) ($tenant?->id ?? 0);
+    }
+    private function scopeQueryByTenant($query, int $tenantId): void
+    {
+        if ($tenantId <= 0) {
+            return;
+        }
+
+        $query->where(function ($tenantQuery) use ($tenantId) {
+            $tenantQuery->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+        });
     }
 }

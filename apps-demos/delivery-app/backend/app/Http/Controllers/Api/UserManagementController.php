@@ -15,8 +15,10 @@ class UserManagementController extends Controller
 {
     public function index(): JsonResponse
     {
+        $tenantId = (int) (request()->user()?->tenant_id ?? 0);
         $users = User::query()
             ->with('roleModel')
+            ->where('tenant_id', $tenantId)
             ->orderBy('id')
             ->get()
             ->map(fn (User $user) => $this->mapUser($user));
@@ -35,6 +37,7 @@ class UserManagementController extends Controller
         ]);
 
         $role = Role::query()->findOrFail((int) $data['role_id']);
+        $tenantId = (int) ($request->user()?->tenant_id ?? 0);
 
         $user = User::query()->create([
             'name' => $data['name'],
@@ -42,6 +45,7 @@ class UserManagementController extends Controller
             'password' => Hash::make($data['password']),
             'role_id' => $role->id,
             'role' => $role->name,
+            'tenant_id' => $tenantId,
             'is_active' => $data['is_active'] ?? true,
         ]);
 
@@ -57,6 +61,10 @@ class UserManagementController extends Controller
 
     public function update(Request $request, User $user): JsonResponse
     {
+        if ((int) $user->tenant_id !== (int) $request->user()?->tenant_id) {
+            return response()->json(['message' => 'Usuario fuera del tenant actual.'], 403);
+        }
+
         $data = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['sometimes', 'required', 'email', Rule::unique('users', 'email')->ignore($user->id)],
@@ -99,6 +107,10 @@ class UserManagementController extends Controller
 
     public function destroy(Request $request, User $user): JsonResponse
     {
+        if ((int) $user->tenant_id !== (int) $request->user()?->tenant_id) {
+            return response()->json(['message' => 'Usuario fuera del tenant actual.'], 403);
+        }
+
         $snapshot = [
             'name' => $user->name,
             'email' => $user->email,
@@ -123,6 +135,7 @@ class UserManagementController extends Controller
             'role' => $user->roleModel?->name ?? $user->role,
             'role_label' => $user->roleModel?->label ?? $user->role,
             'is_active' => $user->is_active,
+            'tenant_id' => $user->tenant_id,
         ];
     }
 

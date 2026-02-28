@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bundle;
+use App\Models\Product;
+use App\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -12,9 +14,12 @@ class BundleController extends Controller
 {
     public function index(): JsonResponse
     {
-        $bundles = Bundle::query()
+        $query = Bundle::query()
             ->with('products')
-            ->orderBy('name')
+            ->orderBy('name');
+        $this->scopeQueryByTenant($query, $this->resolveTenantId());
+
+        $bundles = $query
             ->get()
             ->map(function (Bundle $bundle) {
                 $bundle->setAttribute('image_url', $bundle->getFirstMediaUrl('images') ?: null);
@@ -26,6 +31,10 @@ class BundleController extends Controller
 
     public function show(Bundle $bundle): JsonResponse
     {
+        if (!$this->belongsToCurrentTenant($bundle->tenant_id)) {
+            return response()->json(['message' => 'Bundle fuera del tenant actual.'], 403);
+        }
+
         $bundle->load('products');
         $bundle->setAttribute('image_url', $bundle->getFirstMediaUrl('images') ?: null);
 
@@ -46,6 +55,10 @@ class BundleController extends Controller
             'products.*.quantity' => ['nullable', 'integer', 'min:1'],
             'image' => ['nullable', 'file', 'image', 'max:5120'],
         ]);
+
+        if (!$this->productsBelongToCurrentTenant($data['products'])) {
+            return response()->json(['message' => 'Al menos un producto no pertenece al tenant actual.'], 422);
+        }
 
         $bundle = Bundle::query()->create([
             'name' => $data['name'],
@@ -71,6 +84,10 @@ class BundleController extends Controller
 
     public function update(Request $request, Bundle $bundle): JsonResponse
     {
+        if (!$this->belongsToCurrentTenant($bundle->tenant_id)) {
+            return response()->json(['message' => 'Bundle fuera del tenant actual.'], 403);
+        }
+
         $data = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -83,6 +100,10 @@ class BundleController extends Controller
             'products.*.quantity' => ['nullable', 'integer', 'min:1'],
             'image' => ['nullable', 'file', 'image', 'max:5120'],
         ]);
+
+        if (array_key_exists('products', $data) && !$this->productsBelongToCurrentTenant($data['products'])) {
+            return response()->json(['message' => 'Al menos un producto no pertenece al tenant actual.'], 422);
+        }
 
         $pricingMode = $data['pricing_mode'] ?? $bundle->pricing_mode;
 
@@ -110,6 +131,10 @@ class BundleController extends Controller
 
     public function destroy(Bundle $bundle): JsonResponse
     {
+        if (!$this->belongsToCurrentTenant($bundle->tenant_id)) {
+            return response()->json(['message' => 'Bundle fuera del tenant actual.'], 403);
+        }
+
         $bundle->delete();
 
         return response()->json([
@@ -127,5 +152,69 @@ class BundleController extends Controller
             ];
         })->all();
     }
-}
 
+    private function productsBelongToCurrentTenant(array $items): bool
+    {
+        $tenantId = $this->resolveTenantId();
+        if ($tenantId <= 0) {
+            return true;
+        }
+
+        $productIds = collect($items)->pluck('product_id')->map(fn ($id) => (int) $id)->unique()->values();
+        if ($productIds->isEmpty()) {
+            return true;
+        }
+
+        $count = Product::query()
+            ->whereIn('id', $productIds)
+            ->where(function ($query) use ($tenantId) {
+                $query->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+            })
+            ->count();
+
+        return $count === $productIds->count();
+    }
+
+    private function resolveTenantId(): int
+    {
+        $userTenantId = (int) (request()->user()?->tenant_id ?? 0);
+        if ($userTenantId > 0) {
+            return $userTenantId;
+        }
+
+        $tenantSlug = trim((string) (request()->query('tenant_slug') ?: request()->header('X-Tenant-Slug') ?: ''));
+        if ($tenantSlug !== '') {
+            $tenantBySlug = Tenant::query()
+                ->where('slug', $tenantSlug)
+                ->where('is_active', true)
+                ->first();
+
+            if ($tenantBySlug) {
+                return (int) $tenantBySlug->id;
+            }
+        }
+
+        $tenant = Tenant::query()->where('is_active', true)->orderBy('id')->first();
+        return (int) ($tenant?->id ?? 0);
+    }
+    private function scopeQueryByTenant($query, int $tenantId): void
+    {
+        if ($tenantId <= 0) {
+            return;
+        }
+
+        $query->where(function ($tenantQuery) use ($tenantId) {
+            $tenantQuery->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+        });
+    }
+
+    private function belongsToCurrentTenant(?int $resourceTenantId): bool
+    {
+        $tenantId = $this->resolveTenantId();
+        if ($tenantId <= 0) {
+            return true;
+        }
+
+        return (int) ($resourceTenantId ?? $tenantId) === $tenantId;
+    }
+}

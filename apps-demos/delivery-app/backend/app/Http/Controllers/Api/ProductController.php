@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Product;
+use App\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -13,9 +14,14 @@ class ProductController extends Controller
 {
     public function index(): JsonResponse
     {
-        $products = Product::query()
+        $tenantId = $this->resolveTenantId();
+
+        $productsQuery = Product::query()
             ->with(['ingredients', 'extras'])
-            ->orderBy('name')
+            ->orderBy('name');
+        $this->scopeQueryByTenant($productsQuery, $tenantId);
+
+        $products = $productsQuery
             ->get()
             ->map(function (Product $product) {
                 $product->setAttribute('image_url', $product->getFirstMediaUrl('images') ?: $product->image_url);
@@ -27,6 +33,10 @@ class ProductController extends Controller
 
     public function show(Request $request, Product $product): JsonResponse
     {
+        if (!$this->belongsToCurrentTenant($product->tenant_id)) {
+            return response()->json(['message' => 'Producto fuera del tenant actual.'], 403);
+        }
+
         $product->load([
             'ingredients' => fn ($query) => $query->where('ingredients.is_active', true),
             'extras' => fn ($query) => $query->where('is_active', true),
@@ -136,6 +146,10 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product): JsonResponse
     {
+        if (!$this->belongsToCurrentTenant($product->tenant_id)) {
+            return response()->json(['message' => 'Producto fuera del tenant actual.'], 403);
+        }
+
         $data = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -211,6 +225,10 @@ class ProductController extends Controller
 
     public function destroy(Request $request, Product $product): JsonResponse
     {
+        if (!$this->belongsToCurrentTenant($product->tenant_id)) {
+            return response()->json(['message' => 'Producto fuera del tenant actual.'], 403);
+        }
+
         $snapshot = [
             'name' => $product->name,
             'base_price' => $product->base_price,
@@ -242,6 +260,7 @@ class ProductController extends Controller
         }
 
         $query = Product::query();
+        $this->scopeQueryByTenant($query, $this->resolveTenantId());
         if (!empty($data['category'])) {
             $query->where('category', trim((string) $data['category']));
         }
@@ -376,5 +395,48 @@ class ProductController extends Controller
             'entity_id' => $entityId,
             'metadata' => $metadata,
         ]);
+    }
+
+    private function resolveTenantId(): int
+    {
+        $userTenantId = (int) (request()->user()?->tenant_id ?? 0);
+        if ($userTenantId > 0) {
+            return $userTenantId;
+        }
+
+        $tenantSlug = trim((string) (request()->query('tenant_slug') ?: request()->header('X-Tenant-Slug') ?: ''));
+        if ($tenantSlug !== '') {
+            $tenantBySlug = Tenant::query()
+                ->where('slug', $tenantSlug)
+                ->where('is_active', true)
+                ->first();
+
+            if ($tenantBySlug) {
+                return (int) $tenantBySlug->id;
+            }
+        }
+
+        $tenant = Tenant::query()->where('is_active', true)->orderBy('id')->first();
+        return (int) ($tenant?->id ?? 0);
+    }
+    private function scopeQueryByTenant($query, int $tenantId): void
+    {
+        if ($tenantId <= 0) {
+            return;
+        }
+
+        $query->where(function ($tenantQuery) use ($tenantId) {
+            $tenantQuery->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+        });
+    }
+
+    private function belongsToCurrentTenant(?int $resourceTenantId): bool
+    {
+        $tenantId = $this->resolveTenantId();
+        if ($tenantId <= 0) {
+            return true;
+        }
+
+        return (int) ($resourceTenantId ?? $tenantId) === $tenantId;
     }
 }

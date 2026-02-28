@@ -53,6 +53,7 @@ VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 VITE_BACKEND_API_URL=http://127.0.0.1:8010/api
+VITE_BACKEND_ASSET_BASE_URL=http://127.0.0.1:8010
 ```
 
 Sin estas variables, la app sigue funcionando en modo demo local.

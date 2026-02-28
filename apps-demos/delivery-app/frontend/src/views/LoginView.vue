@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
-import { useRouter } from 'vue-router'
-import { BriefcaseBusiness, CookingPot, Truck, UserRound } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { BriefcaseBusiness, CookingPot, ShieldCheck, Truck, UserRound } from 'lucide-vue-next'
 import { useDeliveryStore, type UserRole } from '../stores/delivery'
 
 const store = useDeliveryStore()
 const router = useRouter()
+const route = useRoute()
 
 const roleCards: Array<{ role: UserRole; label: string; subtitle: string; icon: unknown }> = [
+  { role: 'superadmin', label: 'Admin General', subtitle: 'Gestion SaaS de negocios', icon: ShieldCheck },
   { role: 'client', label: 'Cliente', subtitle: 'Compra y seguimiento del pedido', icon: UserRound },
   { role: 'employee', label: 'Cocina', subtitle: 'Preparacion y despacho interno', icon: CookingPot },
   { role: 'admin', label: 'Admin', subtitle: 'Gestion de pedidos y stock', icon: BriefcaseBusiness },
@@ -16,9 +18,11 @@ const roleCards: Array<{ role: UserRole; label: string; subtitle: string; icon: 
 const form = reactive({
   email: '',
   password: '',
+  tenantSlug: String(route.query.tenant || import.meta.env.VITE_DEFAULT_TENANT_SLUG || 'demo-delivery'),
 })
 
 const DEMO_CREDENTIALS: Record<UserRole, { email: string; password: string }> = {
+  superadmin: { email: 'superadmin@dunamis.local', password: 'demo1234' },
   admin: { email: 'admin@delivery.local', password: 'demo1234' },
   employee: { email: 'empleado@delivery.local', password: 'demo1234' },
   driver: { email: 'repartidor@delivery.local', password: 'demo1234' },
@@ -42,19 +46,29 @@ const emitAuthLog = (roleLabel: string) => {
 const enterWithRole = async (role: UserRole) => {
   emitAuthLog(roleCards.find((item) => item.role === role)?.label || role)
   const fallback = DEMO_CREDENTIALS[role]
-  const email = form.email.trim() || fallback.email
-  const password = form.password.trim() || fallback.password
+  const email = fallback.email
+  const password = fallback.password
   form.email = email
   form.password = password
-  const ok = await store.login(email, password)
+  const ok = await store.login(email, password, form.tenantSlug)
   if (!ok) return
+  const redirect = String(route.query.redirect || '').trim()
+  if (redirect) {
+    router.push(redirect)
+    return
+  }
   router.push(store.allowedRouteByRole)
 }
 
 const submitLogin = async () => {
   emitAuthLog('acceso')
-  const ok = await store.login(form.email, form.password)
+  const ok = await store.login(form.email, form.password, form.tenantSlug)
   if (!ok) return
+  const redirect = String(route.query.redirect || '').trim()
+  if (redirect) {
+    router.push(redirect)
+    return
+  }
   router.push(store.allowedRouteByRole)
 }
 </script>
@@ -89,8 +103,15 @@ const submitLogin = async () => {
           placeholder="Password"
           autocomplete="current-password"
         />
+        <input
+          v-model="form.tenantSlug"
+          type="text"
+          class="rounded-xl border border-slate-200/70 bg-white/85 px-3 py-2 text-sm md:col-span-2"
+          placeholder="Negocio (tenant slug)"
+        />
         <button type="submit" class="sr-only">Ingresar</button>
       </form>
+      <p class="mt-1 text-xs text-slate-500">Demo por defecto: <span class="font-semibold">demo-delivery</span></p>
       <p v-if="store.authError" class="mt-2 text-sm font-semibold text-rose-600">{{ store.authError }}</p>
 
       <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">

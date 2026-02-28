@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Role;
+use App\Models\Tenant;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -15,7 +16,20 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $tenant = Tenant::query()->updateOrCreate(
+            ['slug' => 'demo-delivery'],
+            [
+                'name' => 'Demo Delivery',
+                'plan_key' => 'full',
+                'billing_status' => 'paid',
+                'monthly_fee_ars' => 160000,
+                'next_billing_at' => now()->addDays(15),
+                'is_active' => true,
+            ]
+        );
+
         $roles = collect([
+            ['name' => 'superadmin', 'label' => 'Super Administrador'],
             ['name' => 'admin', 'label' => 'Administrador'],
             ['name' => 'employee', 'label' => 'Empleado'],
             ['name' => 'driver', 'label' => 'Repartidor'],
@@ -30,11 +44,24 @@ class DatabaseSeeder extends Seeder
         });
 
         User::query()->updateOrCreate(
+            ['email' => 'superadmin@dunamis.local'],
+            [
+                'name' => 'Super Admin Dunamis',
+                'role' => 'superadmin',
+                'role_id' => $roles['superadmin']->id,
+                'tenant_id' => null,
+                'is_active' => true,
+                'password' => Hash::make('demo1234'),
+            ]
+        );
+
+        User::query()->updateOrCreate(
             ['email' => 'admin@delivery.local'],
             [
                 'name' => 'Admin Delivery',
                 'role' => 'admin',
                 'role_id' => $roles['admin']->id,
+                'tenant_id' => $tenant->id,
                 'is_active' => true,
                 'password' => Hash::make('demo1234'),
             ]
@@ -46,6 +73,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Empleado Delivery',
                 'role' => 'employee',
                 'role_id' => $roles['employee']->id,
+                'tenant_id' => $tenant->id,
                 'is_active' => true,
                 'password' => Hash::make('demo1234'),
             ]
@@ -57,6 +85,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Repartidor Delivery',
                 'role' => 'driver',
                 'role_id' => $roles['driver']->id,
+                'tenant_id' => $tenant->id,
                 'is_active' => true,
                 'password' => Hash::make('demo1234'),
             ]
@@ -68,6 +97,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Cliente Delivery',
                 'role' => 'client',
                 'role_id' => $roles['client']->id,
+                'tenant_id' => $tenant->id,
                 'is_active' => true,
                 'password' => Hash::make('demo1234'),
             ]

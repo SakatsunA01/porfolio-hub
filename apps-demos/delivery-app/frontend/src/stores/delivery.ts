@@ -1,8 +1,9 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { resolveAssetUrl, resolveProductImageUrl } from '../utils/media'
 
 export type OrderStatus = 'received' | 'preparing' | 'ready' | 'onroute' | 'delivered' | 'canceled' | 'rejected'
-export type UserRole = 'admin' | 'employee' | 'driver' | 'client'
+export type UserRole = 'superadmin' | 'admin' | 'employee' | 'driver' | 'client'
 export type PaymentMethod = 'cash' | 'mercado_pago'
 export type PaymentStatus = 'pending' | 'paid' | 'refunded'
 
@@ -11,6 +12,9 @@ interface SessionUser {
   name: string
   email: string
   role: UserRole
+  tenantId?: number | null
+  tenantSlug?: string | null
+  tenantName?: string | null
 }
 
 export interface Product {
@@ -56,6 +60,41 @@ export interface BundleItem {
   discountPercentage: number
   imageUrl?: string | null
   enabled: boolean
+}
+
+export interface ComboItem {
+  id: number
+  name: string
+  description?: string | null
+  basePrice: number
+  imageUrl?: string | null
+  enabled: boolean
+  items: Array<{ productId: number; quantity: number }>
+}
+
+export interface DailyMenuItem {
+  id: number
+  itemType: 'product' | 'combo'
+  itemId: number
+  promoPrice: number | null
+  sortOrder: number
+  name?: string | null
+  imageUrl?: string | null
+  basePrice?: number
+}
+
+export interface DailyMenu {
+  id: number
+  name: string
+  description?: string | null
+  imageUrl?: string | null
+  isActive: boolean
+  slot: 'all_day' | 'lunch' | 'dinner'
+  weekdays: number[]
+  activeFrom?: string | null
+  activeTo?: string | null
+  priority: number
+  items: DailyMenuItem[]
 }
 
 export interface AuditLogItem {
@@ -120,6 +159,7 @@ export interface OrderUpdatePayload {
 
 const AUTH_KEY = 'delivery-vue-auth-v2'
 const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8010/api'
+const DEFAULT_TENANT_SLUG = import.meta.env.VITE_DEFAULT_TENANT_SLUG || 'demo-delivery'
 
 const statusFromApi = (value: string): OrderStatus => {
   if (value === 'pendiente') return 'received'
@@ -141,6 +181,16 @@ const statusToApi = (value: OrderStatus): string => {
   return 'entregado'
 }
 
+const normalizeSessionUser = (raw: SessionUser & { tenant_id?: number | null; tenant_slug?: string | null; tenant_name?: string | null }): SessionUser => ({
+  id: Number(raw.id),
+  name: String(raw.name || ''),
+  email: String(raw.email || ''),
+  role: raw.role,
+  tenantId: raw.tenantId ?? raw.tenant_id ?? null,
+  tenantSlug: raw.tenantSlug ?? raw.tenant_slug ?? null,
+  tenantName: raw.tenantName ?? raw.tenant_name ?? null,
+})
+
 export const useDeliveryStore = defineStore('delivery', () => {
   const products = ref<Product[]>([])
   const employees = ref<TeamMember[]>([])
@@ -149,7 +199,9 @@ export const useDeliveryStore = defineStore('delivery', () => {
   const roles = ref<RoleItem[]>([])
   const orders = ref<Order[]>([])
   const ingredients = ref<IngredientItem[]>([])
+  const combos = ref<ComboItem[]>([])
   const bundles = ref<BundleItem[]>([])
+  const dailyMenus = ref<DailyMenu[]>([])
   const auditLogs = ref<AuditLogItem[]>([])
   const customerInsights = ref<CustomerInsight[]>([])
 
@@ -159,6 +211,8 @@ export const useDeliveryStore = defineStore('delivery', () => {
   const clientLookup = ref('')
   const flashMessage = ref('')
   const currentUser = ref<SessionUser | null>(null)
+  const publicTenantSlug = ref('')
+  const storefrontName = ref('Dunamis Store')
   const authError = ref('')
   const apiToken = ref('')
   const realtimeConnected = ref(false)
@@ -182,16 +236,29 @@ export const useDeliveryStore = defineStore('delivery', () => {
     return sortedOrders.value.filter((order) => order.customer.toLowerCase().includes(query))
   })
   const isAuthenticated = computed(() => currentUser.value !== null)
+  const activeTenantSlug = computed(() => {
+    const sessionSlug = (currentUser.value?.tenantSlug || '').trim()
+    if (sessionSlug) return sessionSlug
+    return publicTenantSlug.value.trim()
+  })
+  const activeStorefrontName = computed(() => {
+    const sessionName = (currentUser.value?.tenantName || '').trim()
+    if (sessionName) return sessionName
+    const fallbackName = storefrontName.value.trim()
+    return fallbackName || 'Dunamis Store'
+  })
   const allowedRouteByRole = computed(() => {
     switch (currentUser.value?.role) {
+      case 'superadmin':
+        return '/superadmin/home'
       case 'admin':
-        return '/admin'
+        return '/admin/home'
       case 'employee':
-        return '/empleado'
+        return '/empleado/panel'
       case 'driver':
-        return '/repartidor'
+        return '/repartidor/ruta'
       case 'client':
-        return '/cliente'
+        return '/cliente/tienda'
       default:
         return '/login'
     }
@@ -235,8 +302,14 @@ export const useDeliveryStore = defineStore('delivery', () => {
       return
     }
     try {
-      const parsed = JSON.parse(raw) as { user: SessionUser; token: string }
-      currentUser.value = parsed.user
+      const parsed = JSON.parse(raw) as { user: SessionUser & { tenant_id?: number | null; tenant_slug?: string | null; tenant_name?: string | null }; token: string }
+      currentUser.value = normalizeSessionUser(parsed.user)
+      if (currentUser.value.tenantSlug) {
+        setPublicTenantSlug(currentUser.value.tenantSlug)
+      }
+      if (currentUser.value.tenantName) {
+        storefrontName.value = currentUser.value.tenantName
+      }
       apiToken.value = parsed.token
     } catch {
       currentUser.value = null
@@ -245,7 +318,62 @@ export const useDeliveryStore = defineStore('delivery', () => {
     }
   }
 
+  const restoreAuthFromStorage = () => {
+    if (apiToken.value) return
+    const raw = localStorage.getItem(AUTH_KEY)
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as {
+        user?: SessionUser & { tenant_id?: number | null; tenant_slug?: string | null; tenant_name?: string | null }
+        token?: string
+      }
+      if (parsed.token) {
+        apiToken.value = parsed.token
+      }
+      if (parsed.user && !currentUser.value) {
+        currentUser.value = normalizeSessionUser(parsed.user)
+        if (currentUser.value.tenantSlug) {
+          setPublicTenantSlug(currentUser.value.tenantSlug)
+        }
+        if (currentUser.value.tenantName) {
+          storefrontName.value = currentUser.value.tenantName
+        }
+      }
+    } catch {
+      // noop
+    }
+  }
+
+  const withTenantSlug = (path: string) => {
+    const slug = activeTenantSlug.value
+    if (!slug || currentUser.value) return path
+    const separator = path.includes('?') ? '&' : '?'
+    return `${path}${separator}tenant_slug=${encodeURIComponent(slug)}`
+  }
+
+  const setPublicTenantSlug = (slugRaw: string) => {
+    publicTenantSlug.value = (slugRaw || '').trim()
+  }
+
+  const fetchStorefront = async (slugRaw?: string) => {
+    const slug = (slugRaw || activeTenantSlug.value || '').trim()
+    if (!slug) {
+      storefrontName.value = 'Dunamis Store'
+      return
+    }
+    try {
+      const payload = await apiRequest<{ name?: string }>(`/storefront/${encodeURIComponent(slug)}`)
+      storefrontName.value = String(payload?.name || 'Dunamis Store')
+    } catch {
+      storefrontName.value = 'Dunamis Store'
+    }
+  }
+
   const apiRequest = async <T>(path: string, init?: RequestInit, auth = false): Promise<T> => {
+    if (auth && !apiToken.value) {
+      restoreAuthFromStorage()
+    }
+
     const headers = new Headers(init?.headers || {})
     if (!headers.has('Accept')) {
       headers.set('Accept', 'application/json')
@@ -259,14 +387,29 @@ export const useDeliveryStore = defineStore('delivery', () => {
     if (auth && apiToken.value) {
       headers.set('Authorization', `Bearer ${apiToken.value}`)
     }
+    if (auth && !apiToken.value) {
+      throw new Error('api-auth-missing')
+    }
 
-    const response = await fetch(`${BACKEND_API_URL.replace(/\/$/, '')}${path}`, {
+    const response = await fetch(`${BACKEND_API_URL.replace(/\/$/, '')}${withTenantSlug(path)}`, {
       ...init,
       headers,
     })
 
     if (!response.ok) {
-      throw new Error(`api-error:${response.status}`)
+      let apiMessage = ''
+      try {
+        const errorPayload = (await response.json()) as { message?: string }
+        apiMessage = String(errorPayload?.message || '')
+      } catch {
+        // noop
+      }
+      if (auth && response.status === 401) {
+        currentUser.value = null
+        apiToken.value = ''
+        persistAuth()
+      }
+      throw new Error(`api-error:${response.status}${apiMessage ? `:${apiMessage}` : ''}`)
     }
 
     return (await response.json()) as T
@@ -282,7 +425,7 @@ export const useDeliveryStore = defineStore('delivery', () => {
       stockQuantity: Number(item.stock_quantity || 0),
       minStockQuantity: Number(item.min_stock_quantity || 0),
       enabled: Boolean(item.is_active),
-      imageUrl: (item.image_url as string | null) || null,
+      imageUrl: resolveProductImageUrl(item.image_url as string | null, String(item.name || '')),
     }))
   }
 
@@ -304,8 +447,60 @@ export const useDeliveryStore = defineStore('delivery', () => {
       pricingMode: String(item.pricing_mode || 'fixed_price') as 'fixed_price' | 'discount_percentage',
       fixedPrice: Number(item.fixed_price || 0),
       discountPercentage: Number(item.discount_percentage || 0),
-      imageUrl: (item.image_url as string | null) || null,
+      imageUrl: resolveAssetUrl(item.image_url as string | null),
       enabled: Boolean(item.is_active),
+    }))
+  }
+
+  const normalizeCombos = (payload: Array<Record<string, unknown>>) => {
+    combos.value = payload.map((item) => ({
+      id: Number(item.id),
+      name: String(item.name || ''),
+      description: item.description ? String(item.description) : null,
+      basePrice: Number(item.base_price || 0),
+      imageUrl: resolveAssetUrl(
+        (item.image_url as string | null) ||
+          (item.imageUrl as string | null) ||
+          ((item.media as Array<{ original_url?: string; url?: string }> | undefined)?.[0]?.original_url ?? null) ||
+          ((item.media as Array<{ original_url?: string; url?: string }> | undefined)?.[0]?.url ?? null),
+      ),
+      enabled: Boolean(item.is_active),
+      items: (Array.isArray(item.products) ? item.products : [])
+        .map((product) => {
+          const row = product as { id?: number; product_id?: number; pivot?: { quantity?: number }; quantity?: number }
+          return {
+            productId: Number(row.id || row.product_id || 0),
+            quantity: Number(row.pivot?.quantity || row.quantity || 1),
+          }
+        })
+        .filter((row) => row.productId > 0),
+    }))
+  }
+
+  const normalizeDailyMenus = (payload: Array<Record<string, unknown>>) => {
+    dailyMenus.value = payload.map((item) => ({
+      id: Number(item.id),
+      name: String(item.name || ''),
+      description: item.description ? String(item.description) : null,
+      imageUrl: resolveAssetUrl(item.image_url as string | null),
+      isActive: Boolean(item.is_active),
+      slot: String(item.slot || 'all_day') as 'all_day' | 'lunch' | 'dinner',
+      weekdays: Array.isArray(item.weekdays) ? item.weekdays.map((value) => Number(value)).filter((value) => value >= 1 && value <= 7) : [],
+      activeFrom: item.active_from ? String(item.active_from) : null,
+      activeTo: item.active_to ? String(item.active_to) : null,
+      priority: Number(item.priority || 0),
+      items: (Array.isArray(item.items) ? item.items : []).map((row) => ({
+        id: Number((row as { id?: number }).id || 0),
+        itemType: String((row as { item_type?: string }).item_type || 'product') as 'product' | 'combo',
+        itemId: Number((row as { item_id?: number }).item_id || 0),
+        promoPrice: (row as { promo_price?: number | null }).promo_price === null || (row as { promo_price?: number | null }).promo_price === undefined
+          ? null
+          : Number((row as { promo_price?: number }).promo_price || 0),
+        sortOrder: Number((row as { sort_order?: number }).sort_order || 0),
+        name: String((row as { name?: string }).name || ''),
+        imageUrl: resolveAssetUrl((row as { image_url?: string | null }).image_url || null),
+        basePrice: Number((row as { base_price?: number }).base_price || 0),
+      })),
     }))
   }
 
@@ -391,6 +586,15 @@ export const useDeliveryStore = defineStore('delivery', () => {
   }
 
   const initialize = async () => {
+    if (!currentUser.value) {
+      const pathMatch = window.location.pathname.match(/^\/tienda\/([^/]+)/i)
+      if (pathMatch?.[1]) {
+        setPublicTenantSlug(decodeURIComponent(pathMatch[1]))
+      }
+    }
+    if (activeTenantSlug.value) {
+      await fetchStorefront(activeTenantSlug.value)
+    }
     try {
       const productPayload = await apiRequest<Array<Record<string, unknown>>>('/products')
       normalizeProducts(productPayload)
@@ -398,27 +602,46 @@ export const useDeliveryStore = defineStore('delivery', () => {
       normalizeIngredients(ingredientsPayload)
       const bundlesPayload = await apiRequest<Array<Record<string, unknown>>>('/bundles')
       normalizeBundles(bundlesPayload)
+      const combosPayload = await apiRequest<Array<Record<string, unknown>>>('/combos')
+      normalizeCombos(combosPayload)
+      if (currentUser.value?.role === 'admin') {
+        const dailyMenusPayload = await apiRequest<Array<Record<string, unknown>>>('/daily-menus', undefined, true)
+        normalizeDailyMenus(dailyMenusPayload)
+      }
     } catch {
       products.value = []
       ingredients.value = []
+      combos.value = []
       bundles.value = []
+      dailyMenus.value = []
     }
   }
 
-  const login = async (emailRaw: string, passwordRaw: string) => {
+  const login = async (emailRaw: string, passwordRaw: string, tenantSlugRaw = '') => {
+    const tenantSlug = tenantSlugRaw.trim() || DEFAULT_TENANT_SLUG
     try {
-      const payload = await apiRequest<{ token: string; user: SessionUser }>(
+      const payload = await apiRequest<{
+        token: string
+        user: SessionUser & { tenant_id?: number | null; tenant_slug?: string | null; tenant_name?: string | null }
+      }>(
         '/auth/login',
         {
           method: 'POST',
           body: JSON.stringify({
             email: emailRaw.trim().toLowerCase(),
             password: passwordRaw.trim(),
+            tenant_slug: tenantSlug,
           }),
         },
       )
       apiToken.value = payload.token
-      currentUser.value = payload.user
+      currentUser.value = normalizeSessionUser(payload.user)
+      if (currentUser.value.tenantSlug) {
+        setPublicTenantSlug(currentUser.value.tenantSlug)
+      }
+      if (currentUser.value.tenantName) {
+        storefrontName.value = currentUser.value.tenantName
+      }
       authError.value = ''
       persistAuth()
       await refreshAll()
@@ -436,6 +659,50 @@ export const useDeliveryStore = defineStore('delivery', () => {
     }
   }
 
+  const loginWithGoogle = async (idTokenRaw: string, tenantSlugRaw = '') => {
+    const tenantSlug = tenantSlugRaw.trim() || DEFAULT_TENANT_SLUG
+    const idToken = idTokenRaw.trim()
+    if (!idToken) {
+      authError.value = 'Token de Google invalido.'
+      return false
+    }
+    try {
+      const payload = await apiRequest<{
+        token: string
+        user: SessionUser & { tenant_id?: number | null; tenant_slug?: string | null; tenant_name?: string | null }
+      }>(
+        '/auth/google',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            id_token: idToken,
+            tenant_slug: tenantSlug,
+          }),
+        },
+      )
+      apiToken.value = payload.token
+      currentUser.value = normalizeSessionUser(payload.user)
+      if (currentUser.value.tenantSlug) {
+        setPublicTenantSlug(currentUser.value.tenantSlug)
+      }
+      if (currentUser.value.tenantName) {
+        storefrontName.value = currentUser.value.tenantName
+      }
+      authError.value = ''
+      persistAuth()
+      await refreshAll()
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      if (message.includes('otro negocio')) {
+        authError.value = 'Tu cuenta de Google pertenece a otro negocio.'
+      } else {
+        authError.value = 'No se pudo iniciar sesion con Google.'
+      }
+      return false
+    }
+  }
+
   const logout = async () => {
     try {
       if (apiToken.value) {
@@ -445,6 +712,8 @@ export const useDeliveryStore = defineStore('delivery', () => {
       // noop
     }
     currentUser.value = null
+    publicTenantSlug.value = ''
+    storefrontName.value = 'Dunamis Store'
     authError.value = ''
     apiToken.value = ''
     persistAuth()
@@ -452,16 +721,18 @@ export const useDeliveryStore = defineStore('delivery', () => {
 
   const refreshAll = async () => {
     try {
-      const [productPayload, rolePayload, orderPayload, ingredientsPayload, bundlesPayload] = await Promise.all([
+      const [productPayload, rolePayload, orderPayload, ingredientsPayload, bundlesPayload, combosPayload] = await Promise.all([
         apiRequest<Array<Record<string, unknown>>>('/products'),
         apiRequest<Array<Record<string, unknown>>>('/roles'),
         currentUser.value ? apiRequest<Array<Record<string, unknown>>>('/orders', undefined, true) : Promise.resolve([]),
         apiRequest<Array<Record<string, unknown>>>('/ingredients'),
         apiRequest<Array<Record<string, unknown>>>('/bundles'),
+        apiRequest<Array<Record<string, unknown>>>('/combos'),
       ])
       normalizeProducts(productPayload)
       normalizeIngredients(ingredientsPayload)
       normalizeBundles(bundlesPayload)
+      normalizeCombos(combosPayload)
       roles.value = rolePayload.map((item) => ({
         id: Number(item.id),
         name: String(item.name || ''),
@@ -474,21 +745,69 @@ export const useDeliveryStore = defineStore('delivery', () => {
 
     if (currentUser.value?.role === 'admin') {
       try {
-        const [usersPayload, customersPayload, auditPayload] = await Promise.all([
+        const [usersPayload, customersPayload, auditPayload, dailyMenusPayload] = await Promise.all([
           apiRequest<Array<Record<string, unknown>>>('/users', undefined, true),
           apiRequest<Array<Record<string, unknown>>>('/customers', undefined, true),
           apiRequest<Array<Record<string, unknown>>>('/audit-logs', undefined, true),
+          apiRequest<Array<Record<string, unknown>>>('/daily-menus', undefined, true),
         ])
         normalizeUsers(usersPayload)
         normalizeCustomerInsights(customersPayload)
         normalizeAuditLogs(auditPayload)
+        normalizeDailyMenus(dailyMenusPayload)
       } catch {
         users.value = []
         employees.value = []
         drivers.value = []
         customerInsights.value = []
         auditLogs.value = []
+        dailyMenus.value = []
       }
+    } else {
+      // Non-admin roles do not have access to /users; keep their own shift context available.
+      if (currentUser.value?.role === 'employee') {
+        employees.value = [
+          {
+            id: currentUser.value.id,
+            name: currentUser.value.name,
+            email: currentUser.value.email,
+            role: 'employee',
+            active: true,
+          },
+        ]
+        if (!shiftEmployeeId.value) {
+          shiftEmployeeId.value = currentUser.value.id
+        }
+      } else {
+        employees.value = []
+        if (shiftEmployeeId.value && currentUser.value?.role !== 'admin') {
+          shiftEmployeeId.value = null
+        }
+      }
+
+      if (currentUser.value?.role === 'driver') {
+        drivers.value = [
+          {
+            id: currentUser.value.id,
+            name: currentUser.value.name,
+            email: currentUser.value.email,
+            role: 'driver',
+            active: true,
+          },
+        ]
+        if (!shiftDriverId.value) {
+          shiftDriverId.value = currentUser.value.id
+        }
+      } else {
+        drivers.value = []
+        if (shiftDriverId.value && currentUser.value?.role !== 'admin') {
+          shiftDriverId.value = null
+        }
+      }
+
+      customerInsights.value = []
+      auditLogs.value = []
+      dailyMenus.value = []
     }
   }
 
@@ -512,6 +831,7 @@ export const useDeliveryStore = defineStore('delivery', () => {
       const hasFile = Boolean(payload.imageFile)
       if (hasFile) {
         const formData = new FormData()
+        formData.append('_method', 'PUT')
         formData.append('name', payload.name.trim())
         formData.append('base_price', String(payload.price))
         formData.append('prep_min', String(payload.prepMin))
@@ -566,6 +886,86 @@ export const useDeliveryStore = defineStore('delivery', () => {
       }
       await refreshAll()
       pushFlash('Producto agregado.')
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const updateProduct = async (
+    id: number,
+    payload: {
+      name: string
+      price: number
+      prepMin: number
+      category?: string
+      stockQuantity?: number
+      minStockQuantity?: number
+      imageFile?: File | null
+      ingredients?: Array<{ ingredientId: number; isDefault?: boolean; isRemovable?: boolean; additionalPrice?: number }>
+      extras?: Array<{ id?: number; name: string; additionalPrice: number; isActive?: boolean }>
+    },
+  ) => {
+    try {
+      const hasFile = Boolean(payload.imageFile)
+      if (hasFile) {
+        const formData = new FormData()
+        formData.append('name', payload.name.trim())
+        formData.append('base_price', String(payload.price))
+        formData.append('prep_min', String(payload.prepMin))
+        formData.append('category', payload.category?.trim() || '')
+        formData.append('stock_quantity', String(payload.stockQuantity ?? 0))
+        formData.append('min_stock_quantity', String(payload.minStockQuantity ?? 0))
+        if (payload.imageFile) {
+          formData.append('image', payload.imageFile)
+        }
+        ;(payload.ingredients || []).forEach((ingredient, index) => {
+          formData.append(`ingredients[${index}][ingredient_id]`, String(ingredient.ingredientId))
+          formData.append(`ingredients[${index}][is_default]`, ingredient.isDefault === false ? '0' : '1')
+          formData.append(`ingredients[${index}][is_removable]`, ingredient.isRemovable === false ? '0' : '1')
+          formData.append(`ingredients[${index}][additional_price]`, String(ingredient.additionalPrice ?? 0))
+        })
+        ;(payload.extras || []).forEach((extra, index) => {
+          if (extra.id) {
+            formData.append(`extras[${index}][id]`, String(extra.id))
+          }
+          formData.append(`extras[${index}][name]`, extra.name)
+          formData.append(`extras[${index}][additional_price]`, String(extra.additionalPrice))
+          formData.append(`extras[${index}][is_active]`, extra.isActive === false ? '0' : '1')
+        })
+
+        await apiRequest(`/products/${id}`, { method: 'POST', body: formData }, true)
+      } else {
+        await apiRequest(
+          `/products/${id}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              name: payload.name.trim(),
+              base_price: payload.price,
+              prep_min: payload.prepMin,
+              category: payload.category?.trim() || null,
+              stock_quantity: payload.stockQuantity ?? 0,
+              min_stock_quantity: payload.minStockQuantity ?? 0,
+              ingredients: (payload.ingredients || []).map((ingredient) => ({
+                ingredient_id: ingredient.ingredientId,
+                is_default: ingredient.isDefault ?? true,
+                is_removable: ingredient.isRemovable ?? true,
+                additional_price: ingredient.additionalPrice ?? 0,
+              })),
+              extras: (payload.extras || []).map((extra) => ({
+                id: extra.id,
+                name: extra.name,
+                additional_price: extra.additionalPrice,
+                is_active: extra.isActive ?? true,
+              })),
+            }),
+          },
+          true,
+        )
+      }
+      await refreshAll()
+      pushFlash('Producto actualizado.')
       return true
     } catch {
       return false
@@ -686,40 +1086,45 @@ export const useDeliveryStore = defineStore('delivery', () => {
     imageFile?: File | null
     items: Array<{ productId: number; quantity: number }>
   }) => {
-    if (payload.imageFile) {
-      const formData = new FormData()
-      formData.append('name', payload.name)
-      formData.append('description', payload.description || '')
-      formData.append('base_price', String(payload.basePrice))
-      formData.append('is_active', '1')
-      formData.append('image', payload.imageFile)
-      payload.items.forEach((item, index) => {
-        formData.append(`products[${index}][product_id]`, String(item.productId))
-        formData.append(`products[${index}][quantity]`, String(item.quantity))
-      })
+    try {
+      if (payload.imageFile) {
+        const formData = new FormData()
+        formData.append('name', payload.name)
+        formData.append('description', payload.description || '')
+        formData.append('base_price', String(payload.basePrice))
+        formData.append('is_active', '1')
+        formData.append('image', payload.imageFile)
+        payload.items.forEach((item, index) => {
+          formData.append(`products[${index}][product_id]`, String(item.productId))
+          formData.append(`products[${index}][quantity]`, String(item.quantity))
+        })
 
-      await apiRequest('/combos', { method: 'POST', body: formData }, true)
-    } else {
-      await apiRequest(
-        '/combos',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            name: payload.name,
-            description: payload.description || null,
-            base_price: payload.basePrice,
-            image_url: payload.imageUrl || null,
-            is_active: true,
-            products: payload.items.map((item) => ({
-              product_id: item.productId,
-              quantity: item.quantity,
-            })),
-          }),
-        },
-        true,
-      )
+        await apiRequest('/combos', { method: 'POST', body: formData }, true)
+      } else {
+        await apiRequest(
+          '/combos',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              name: payload.name,
+              description: payload.description || null,
+              base_price: payload.basePrice,
+              image_url: payload.imageUrl || null,
+              is_active: true,
+              products: payload.items.map((item) => ({
+                product_id: item.productId,
+                quantity: item.quantity,
+              })),
+            }),
+          },
+          true,
+        )
+      }
+      await refreshAll()
+      return true
+    } catch {
+      return false
     }
-    await refreshAll()
   }
 
   const createBundle = async (payload: {
@@ -731,22 +1136,191 @@ export const useDeliveryStore = defineStore('delivery', () => {
     imageFile?: File | null
     items: Array<{ productId: number; quantity: number }>
   }) => {
-    const formData = new FormData()
-    formData.append('name', payload.name)
-    formData.append('description', payload.description || '')
-    formData.append('pricing_mode', payload.pricingMode)
-    formData.append('fixed_price', String(payload.fixedPrice ?? 0))
-    formData.append('discount_percentage', String(payload.discountPercentage ?? 0))
-    formData.append('is_active', '1')
-    if (payload.imageFile) {
-      formData.append('image', payload.imageFile)
-    }
-    payload.items.forEach((item, index) => {
-      formData.append(`products[${index}][product_id]`, String(item.productId))
-      formData.append(`products[${index}][quantity]`, String(item.quantity))
-    })
+    try {
+      const formData = new FormData()
+      formData.append('name', payload.name)
+      formData.append('description', payload.description || '')
+      formData.append('pricing_mode', payload.pricingMode)
+      formData.append('fixed_price', String(payload.fixedPrice ?? 0))
+      formData.append('discount_percentage', String(payload.discountPercentage ?? 0))
+      formData.append('is_active', '1')
+      if (payload.imageFile) {
+        formData.append('image', payload.imageFile)
+      }
+      payload.items.forEach((item, index) => {
+        formData.append(`products[${index}][product_id]`, String(item.productId))
+        formData.append(`products[${index}][quantity]`, String(item.quantity))
+      })
 
-    await apiRequest('/bundles', { method: 'POST', body: formData }, true)
+      await apiRequest('/bundles', { method: 'POST', body: formData }, true)
+      await refreshAll()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const updateCombo = async (
+    id: number,
+    payload: {
+      name: string
+      description?: string
+      basePrice: number
+      imageUrl?: string
+      imageFile?: File | null
+      enabled?: boolean
+      items: Array<{ productId: number; quantity: number }>
+    },
+  ) => {
+    try {
+      if (payload.imageFile) {
+        const formData = new FormData()
+        formData.append('name', payload.name)
+        formData.append('description', payload.description || '')
+        formData.append('base_price', String(payload.basePrice))
+        formData.append('is_active', payload.enabled === false ? '0' : '1')
+        formData.append('image', payload.imageFile)
+        payload.items.forEach((item, index) => {
+          formData.append(`products[${index}][product_id]`, String(item.productId))
+          formData.append(`products[${index}][quantity]`, String(item.quantity))
+        })
+        await apiRequest(`/combos/${id}`, { method: 'PUT', body: formData }, true)
+      } else {
+        await apiRequest(
+          `/combos/${id}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              name: payload.name,
+              description: payload.description || null,
+              base_price: payload.basePrice,
+              image_url: payload.imageUrl || null,
+              is_active: payload.enabled ?? true,
+              products: payload.items.map((item) => ({
+                product_id: item.productId,
+                quantity: item.quantity,
+              })),
+            }),
+          },
+          true,
+        )
+      }
+      await refreshAll()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const deleteCombo = async (id: number) => {
+    try {
+      await apiRequest(`/combos/${id}`, { method: 'DELETE' }, true)
+      await refreshAll()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const createDailyMenu = async (payload: {
+    name: string
+    description?: string
+    imageUrl?: string
+    isActive?: boolean
+    slot?: 'all_day' | 'lunch' | 'dinner'
+    weekdays?: number[]
+    activeFrom?: string | null
+    activeTo?: string | null
+    priority?: number
+  }) => {
+    await apiRequest(
+      '/daily-menus',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          name: payload.name,
+          description: payload.description || null,
+          image_url: payload.imageUrl || null,
+          is_active: payload.isActive ?? true,
+          slot: payload.slot || 'all_day',
+          weekdays: payload.weekdays && payload.weekdays.length ? payload.weekdays : null,
+          active_from: payload.activeFrom || null,
+          active_to: payload.activeTo || null,
+          priority: payload.priority ?? 0,
+        }),
+      },
+      true,
+    )
+    await refreshAll()
+  }
+
+  const updateDailyMenu = async (
+    id: number,
+    payload: {
+      name: string
+      description?: string
+      imageUrl?: string
+      isActive?: boolean
+      slot?: 'all_day' | 'lunch' | 'dinner'
+      weekdays?: number[]
+      activeFrom?: string | null
+      activeTo?: string | null
+      priority?: number
+    },
+  ) => {
+    await apiRequest(
+      `/daily-menus/${id}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: payload.name,
+          description: payload.description || null,
+          image_url: payload.imageUrl || null,
+          is_active: payload.isActive ?? true,
+          slot: payload.slot || 'all_day',
+          weekdays: payload.weekdays && payload.weekdays.length ? payload.weekdays : null,
+          active_from: payload.activeFrom || null,
+          active_to: payload.activeTo || null,
+          priority: payload.priority ?? 0,
+        }),
+      },
+      true,
+    )
+    await refreshAll()
+  }
+
+  const deleteDailyMenu = async (id: number) => {
+    await apiRequest(`/daily-menus/${id}`, { method: 'DELETE' }, true)
+    await refreshAll()
+  }
+
+  const upsertDailyMenuItem = async (
+    dailyMenuId: number,
+    payload: {
+      itemType: 'product' | 'combo'
+      itemId: number
+      promoPrice?: number | null
+      sortOrder?: number
+    },
+  ) => {
+    await apiRequest(
+      `/daily-menus/${dailyMenuId}/items`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          item_type: payload.itemType,
+          item_id: payload.itemId,
+          promo_price: payload.promoPrice ?? null,
+          sort_order: payload.sortOrder ?? 0,
+        }),
+      },
+      true,
+    )
+    await refreshAll()
+  }
+
+  const removeDailyMenuItem = async (dailyMenuId: number, itemId: number) => {
+    await apiRequest(`/daily-menus/${dailyMenuId}/items/${itemId}`, { method: 'DELETE' }, true)
     await refreshAll()
   }
 
@@ -1055,8 +1629,12 @@ export const useDeliveryStore = defineStore('delivery', () => {
     clientLookup,
     flashMessage,
     currentUser,
+    publicTenantSlug,
+    storefrontName,
     authError,
     isAuthenticated,
+    activeTenantSlug,
+    activeStorefrontName,
     allowedRouteByRole,
     activeOrders,
     kitchenOrders,
@@ -1070,7 +1648,9 @@ export const useDeliveryStore = defineStore('delivery', () => {
     realtimeConnected,
     realtimeError,
     ingredients,
+    combos,
     bundles,
+    dailyMenus,
     auditLogs,
     customerInsights,
     getProduct,
@@ -1079,12 +1659,16 @@ export const useDeliveryStore = defineStore('delivery', () => {
     getDriver,
     initialize,
     initializeAuth,
+    setPublicTenantSlug,
+    fetchStorefront,
     login,
+    loginWithGoogle,
     logout,
     persist: persistAuth,
     reset,
     refreshAll,
     addProduct,
+    updateProduct,
     addEmployee,
     addDriver,
     createUser,
@@ -1092,6 +1676,13 @@ export const useDeliveryStore = defineStore('delivery', () => {
     createIngredient,
     deactivateIngredientGlobally,
     createCombo,
+    updateCombo,
+    deleteCombo,
+    createDailyMenu,
+    updateDailyMenu,
+    deleteDailyMenu,
+    upsertDailyMenuItem,
+    removeDailyMenuItem,
     createBundle,
     updateUser,
     toggleProduct,
