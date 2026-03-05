@@ -26,7 +26,13 @@ class StorefrontController extends Controller
             'name' => $tenant->name,
             'slug' => $tenant->slug,
             'is_active' => (bool) $tenant->is_active,
+            'shipping_fee_ars' => (int) ($tenant->shipping_fee_ars ?? 0),
+            'free_shipping_threshold_ars' => (int) ($tenant->free_shipping_threshold_ars ?? 0),
+            'logo_url' => $tenant->logo_url,
+            'brand_theme_key' => (string) ($tenant->brand_theme_key ?: 'green'),
+            'brand_primary_color' => (string) ($tenant->brand_primary_color ?: '#10B981'),
+            'business_phone' => (string) ($tenant->business_phone ?? ''),
+            'business_address' => (string) ($tenant->business_address ?? ''),
         ]);
     }
 }
-

@@ -1,19 +1,23 @@
-﻿<template>
-  <section class="bg-axis-primary py-12">
-    <div class="axis-container">
-      <div class="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+<template>
+  <BaseSection>
+    <div class="space-y-12">
+      <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p class="text-sm font-medium uppercase tracking-[0.14em] text-slate-500">Catalogo</p>
-          <h1 class="mt-2 text-4xl font-display font-bold text-axis-secondary">{{ categoryName }}</h1>
-          <p class="mt-2 text-sm text-slate-500">{{ sortedProducts.length }} productos disponibles</p>
+          <p class="text-sm tracking-wide text-text-secondary">Categoria</p>
+          <h1 class="mt-3 font-serif text-4xl tracking-wide text-text-primary md:text-5xl">
+            {{ categoryName }}
+          </h1>
+          <p class="mt-4 text-sm text-text-secondary">
+            {{ sortedProducts.length }} productos disponibles
+          </p>
         </div>
 
-        <div class="flex items-center gap-3">
-          <label for="sort" class="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Ordenar</label>
+        <div class="w-full sm:w-64">
+          <label for="sort" class="mb-2 block text-sm tracking-wide text-text-secondary">Ordenar</label>
           <select
             id="sort"
             v-model="sortBy"
-            class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            class="w-full border border-bg-secondary bg-bg-primary px-4 py-3 text-sm tracking-wide text-text-primary outline-none transition duration-200 ease-out focus:border-text-secondary"
           >
             <option value="newest">Mas recientes</option>
             <option value="price-asc">Precio: menor a mayor</option>
@@ -22,46 +26,53 @@
         </div>
       </div>
 
-      <div v-if="sortedProducts.length" class="mt-8 grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4 xl:gap-x-8">
+      <div v-if="sortedProducts.length" class="grid gap-12 md:grid-cols-2">
         <ProductCard v-for="product in sortedProducts" :key="product.id" :product="product" />
       </div>
 
-      <div
-        v-else
-        class="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm"
-      >
-        <p class="text-lg font-semibold text-slate-800">No hay productos en esta categoria</p>
-        <p class="mt-2 text-sm text-slate-500">Proba otra categoria del menu para seguir explorando.</p>
+      <div v-else class="border border-bg-secondary bg-bg-secondary/40 px-6 py-12 text-center">
+        <p class="font-serif text-2xl tracking-wide text-text-primary">
+          No hay productos en esta categoria
+        </p>
+        <p class="mt-3 text-sm text-text-secondary">
+          Proba otra categoria o recorre el catalogo completo.
+        </p>
       </div>
     </div>
-  </section>
+  </BaseSection>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import ProductCard from '../components/ProductCard.vue';
-import { products } from '../data/products';
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import BaseSection from '../components/BaseSection.vue'
+import ProductCard from '../components/ProductCard.vue'
+import { useCatalogStore } from '../stores/catalog'
 
-const route = useRoute();
-const categoryName = computed(() => route.params.categoryName as string);
-const sortBy = ref('newest');
+const route = useRoute()
+const catalogStore = useCatalogStore()
+const categoryName = computed(() => route.params.categoryName as string)
+const sortBy = ref('newest')
 
-const productsByCategory = computed(() => {
-  return products.filter((product) => product.category === categoryName.value);
-});
+const productsByCategory = computed(() =>
+  catalogStore.products.filter((product) => product.category === categoryName.value),
+)
 
 const sortedProducts = computed(() => {
-  const sorted = [...productsByCategory.value];
+  const sorted = [...productsByCategory.value]
 
   if (sortBy.value === 'price-asc') {
-    sorted.sort((a, b) => a.price - b.price);
+    sorted.sort((a, b) => a.price - b.price)
   } else if (sortBy.value === 'price-desc') {
-    sorted.sort((a, b) => b.price - a.price);
+    sorted.sort((a, b) => b.price - a.price)
   } else {
-    sorted.sort((a, b) => b.id - a.id);
+    sorted.sort((a, b) => b.id - a.id)
   }
 
-  return sorted;
-});
+  return sorted
+})
+
+onMounted(() => {
+  catalogStore.fetchProducts()
+})
 </script>

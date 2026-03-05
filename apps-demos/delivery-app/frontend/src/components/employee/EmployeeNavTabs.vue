@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { ClipboardList, History } from 'lucide-vue-next'
+import { ClipboardList, History, User } from 'lucide-vue-next'
 import ProfileMenu from '../common/ProfileMenu.vue'
 
 const route = useRoute()
@@ -9,6 +9,7 @@ const route = useRoute()
 const tabs = [
   { to: '/empleado/panel', label: 'Panel de cocina', icon: ClipboardList },
   { to: '/empleado/historial', label: 'Produccion cerrada', icon: History },
+  { to: '/empleado/perfil', label: 'Mi perfil', icon: User },
 ]
 
 const activePath = computed(() => route.path)
@@ -32,6 +33,6 @@ const activePath = computed(() => route.path)
         {{ tab.label }}
       </RouterLink>
     </div>
-    <ProfileMenu />
+    <ProfileMenu :profile-route="'/empleado/perfil'" />
   </nav>
 </template>

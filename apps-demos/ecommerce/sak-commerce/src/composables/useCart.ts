@@ -1,40 +1,88 @@
-import { ref, computed, watch } from 'vue'
+import { computed, ref } from 'vue'
+import { useCartStore } from '../stores/cart'
+import { useToast } from './useToast'
 
-// Load cart from localStorage on startup
-const savedCart = localStorage.getItem('shoppingCart')
-const cart = ref(savedCart ? JSON.parse(savedCart) : [])
+type VariantOption = {
+  name: string
+}
+
+type ProductInput = {
+  id: number
+  name: string
+  price: number
+  image?: string | null
+  images?: string[]
+}
 
 const isCartOpen = ref(false)
 
-// Watch for changes in the cart and save to localStorage
-watch(cart, (newCart) => {
-  localStorage.setItem('shoppingCart', JSON.stringify(newCart))
-}, { deep: true })
-
 export function useCart() {
-  const addToCart = (product, color, size, quantity = 1) => {
-    const variantId = `${product.id}-${color.name}-${size.name}`
-    const existingProduct = cart.value.find(item => item.variantId === variantId)
+  const cartStore = useCartStore()
+  const toast = useToast()
 
-    if (existingProduct) {
-      existingProduct.quantity += quantity
-    } else {
-      cart.value.push({ 
+  const cart = computed(() =>
+    cartStore.items.map((item) => ({
+      id: item.product_id,
+      name: item.name,
+      price: item.price,
+      imageSrc: item.image ?? '',
+      imageAlt: item.name,
+      variantId: item.id,
+      color: item.color ?? 'Natural',
+      size: item.size ?? 'Unico',
+      quantity: item.quantity,
+    })),
+  )
+
+  const addToCart = (
+    product: ProductInput,
+    color: VariantOption = { name: 'Default' },
+    size: VariantOption = { name: 'Unico' },
+    quantity = 1,
+  ) => {
+    cartStore.addItem(
+      {
         id: product.id,
         name: product.name,
         price: product.price,
-        imageSrc: product.images[0].src, // Assuming the first image is the main one
-        imageAlt: product.images[0].alt, // Assuming the first image is the main one
-        variantId,
-        color: color.name, 
-        size: size.name, 
-        quantity 
-      })
-    }
+        image: product.images?.[0] || product.image || null,
+      },
+      {
+        size: size.name,
+        color: color.name,
+      },
+      quantity,
+    )
+
+    toast.success('Producto agregado al carrito')
   }
 
-  const removeFromCart = (variantId) => {
-    cart.value = cart.value.filter(item => item.variantId !== variantId)
+  const removeFromCart = (variantId: string) => {
+    cartStore.removeItem(variantId)
+  }
+
+  const updateQuantity = (variantId: string, quantity: number) => {
+    cartStore.updateQuantity(variantId, quantity)
+  }
+
+  const incrementQuantity = (variantId: string) => {
+    const item = cartStore.items.find((entry) => entry.id === variantId)
+
+    if (!item) {
+      return
+    }
+
+    cartStore.updateQuantity(variantId, item.quantity + 1)
+  }
+
+  const decrementQuantity = (variantId: string) => {
+    const item = cartStore.items.find((entry) => entry.id === variantId)
+
+    if (!item) {
+      return
+    }
+
+    cartStore.updateQuantity(variantId, item.quantity - 1)
   }
 
   const openCart = () => {
@@ -45,18 +93,18 @@ export function useCart() {
     isCartOpen.value = false
   }
 
-  const subtotal = computed(() => {
-    return cart.value.reduce((total, item) => {
-      const price = Number(item.price.replace(/[^0-9.-]+/g, ""));
-      return total + price * item.quantity
-    }, 0)
-  })
+  const subtotal = computed(() => cartStore.totalPrice)
+  const cartCount = computed(() => cartStore.totalItems)
 
   return {
     cart,
+    cartCount,
     isCartOpen,
     addToCart,
     removeFromCart,
+    updateQuantity,
+    incrementQuantity,
+    decrementQuantity,
     openCart,
     closeCart,
     subtotal,

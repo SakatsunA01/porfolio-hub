@@ -6,6 +6,7 @@ import { useDeliveryStore, type Product } from '../stores/delivery'
 import AppButton from '../components/common/AppButton.vue'
 import { useOrdersRealtime } from '../composables/useOrdersRealtime'
 import { resolveAssetUrl } from '../utils/media'
+import { getBrandPalette } from '../utils/brandPalettes'
 import ProfileMenu from '../components/common/ProfileMenu.vue'
 
 interface CartLine {
@@ -178,6 +179,19 @@ const currentTenantSlug = computed(() => {
   return String(store.activeTenantSlug || '').trim()
 })
 const storefrontLabel = computed(() => store.activeStorefrontName || 'Dunamis Store')
+const storefrontLogoUrl = computed(() => resolveAssetUrl(store.storefrontLogoUrl))
+const brandPalette = computed(() => getBrandPalette(store.storefrontThemeKey, store.storefrontPrimaryColor))
+const brandPrimaryColor = computed(() => brandPalette.value.primary)
+const brandPrimaryDark = computed(() => brandPalette.value.primaryStrong)
+const brandTint = computed(() => brandPalette.value.primarySoft)
+const clientThemeVars = computed(() => ({
+  '--brand-primary': brandPrimaryColor.value,
+  '--brand-primary-dark': brandPrimaryDark.value,
+  '--brand-primary-tint': brandTint.value,
+  '--brand-surface': brandPalette.value.surface,
+  '--brand-canvas': brandPalette.value.canvas,
+  '--brand-ink': brandPalette.value.ink,
+}))
 const salonHeaderTitle = computed(() => (isSalonMode.value ? `${salonTableLabel.value} - ${storefrontLabel.value}` : storefrontLabel.value))
 const storefrontInitials = computed(() =>
   storefrontLabel.value
@@ -280,12 +294,12 @@ const cartView = computed(() =>
   })),
 )
 
-const total = computed(() => cartView.value.reduce((acc, line) => acc + line.subtotal, 0))
-const totalLabel = computed(() => `$${Number(total.value || 0).toLocaleString('es-AR')}`)
+const subtotal = computed(() => cartView.value.reduce((acc, line) => acc + line.subtotal, 0))
+const subtotalLabel = computed(() => `$${Number(subtotal.value || 0).toLocaleString('es-AR')}`)
 const couponDiscount = computed(() => {
   const coupon = appliedCoupon.value
   if (!coupon) return 0
-  const currentTotal = Number(total.value || 0)
+  const currentTotal = Number(subtotal.value || 0)
   if (currentTotal < Number(coupon.minOrder || 0)) return 0
   if (coupon.kind === 'percentage') {
     return Math.min(currentTotal, (currentTotal * Number(coupon.value || 0)) / 100)
@@ -295,12 +309,27 @@ const couponDiscount = computed(() => {
   }
   return 0
 })
-const totalAfterCoupon = computed(() => Math.max(0, Number(total.value || 0) - couponDiscount.value))
-const totalAfterCouponLabel = computed(() => `$${Number(totalAfterCoupon.value || 0).toLocaleString('es-AR')}`)
-const savingsLabel = computed(() => `$${Number(couponDiscount.value || 0).toLocaleString('es-AR')}`)
-const FREE_SHIPPING_GOAL = 30000
-const freeShippingProgress = computed(() => Math.min(100, Math.round((Number(total.value || 0) / FREE_SHIPPING_GOAL) * 100)))
-const freeShippingRemaining = computed(() => Math.max(0, FREE_SHIPPING_GOAL - Number(total.value || 0)))
+const shippingFee = computed(() => (isSalonMode.value ? 0 : Number(store.shippingFeeArs || 0)))
+const freeShippingGoal = computed(() => (isSalonMode.value ? 0 : Number(store.freeShippingThresholdArs || 0)))
+const hasFreeShippingGoal = computed(() => freeShippingGoal.value > 0)
+const qualifiesForFreeShipping = computed(() => hasFreeShippingGoal.value && Number(subtotal.value || 0) >= freeShippingGoal.value)
+const shippingCouponDiscount = computed(() => {
+  const coupon = appliedCoupon.value
+  if (!coupon || coupon.kind !== 'free_shipping') return 0
+  if (Number(subtotal.value || 0) < Number(coupon.minOrder || 0)) return 0
+  return shippingFee.value
+})
+const effectiveShippingFee = computed(() => {
+  if (qualifiesForFreeShipping.value) return 0
+  return Math.max(0, shippingFee.value - shippingCouponDiscount.value)
+})
+const totalDiscount = computed(() => couponDiscount.value + shippingCouponDiscount.value)
+const totalAfterCoupon = computed(() => Math.max(0, Number(subtotal.value || 0) - couponDiscount.value))
+const payableTotal = computed(() => Math.max(0, totalAfterCoupon.value + effectiveShippingFee.value))
+const payableTotalLabel = computed(() => `$${Number(payableTotal.value || 0).toLocaleString('es-AR')}`)
+const shippingFeeLabel = computed(() => `$${Number(shippingFee.value || 0).toLocaleString('es-AR')}`)
+const effectiveShippingFeeLabel = computed(() => `$${Number(effectiveShippingFee.value || 0).toLocaleString('es-AR')}`)
+const savingsLabel = computed(() => `$${Number(totalDiscount.value || 0).toLocaleString('es-AR')}`)
 const dailyHighlight = computed(() => {
   const now = new Date()
   const activeMenus = store.dailyMenus
@@ -526,7 +555,7 @@ const applyCoupon = () => {
     couponFeedbackTone.value = 'error'
     return
   }
-  if (Number(total.value || 0) < Number(coupon.minOrder || 0)) {
+  if (Number(subtotal.value || 0) < Number(coupon.minOrder || 0)) {
     couponFeedback.value = `Necesitas un minimo de $${Number(coupon.minOrder || 0).toLocaleString('es-AR')}.`
     couponFeedbackTone.value = 'error'
     return
@@ -754,15 +783,17 @@ const closeBottomSheet = (target: 'product' | 'combo') => {
 }
 
 const onBottomSheetTouchStart = (event: TouchEvent, target: 'product' | 'combo') => {
-  if (!event.touches.length) return
+  const touch = event.touches.item(0)
+  if (!touch) return
   bottomSheetTarget.value = target
-  bottomSheetStartY.value = event.touches[0].clientY
+  bottomSheetStartY.value = touch.clientY
   bottomSheetDragging.value = true
 }
 
 const onBottomSheetTouchMove = (event: TouchEvent) => {
-  if (!bottomSheetDragging.value || !event.touches.length) return
-  const delta = event.touches[0].clientY - bottomSheetStartY.value
+  const touch = event.touches.item(0)
+  if (!bottomSheetDragging.value || !touch) return
+  const delta = touch.clientY - bottomSheetStartY.value
   bottomSheetTranslateY.value = Math.max(0, delta)
 }
 
@@ -912,7 +943,7 @@ const confirmOrder = async () => {
         : { product_id: line.productId }),
     })),
   }
-  const localTotal = totalAfterCoupon.value
+  const localTotal = payableTotal.value
   const localChange =
     payload.paymentMethod === 'cash' && payload.cashReceived !== null && payload.cashReceived > localTotal
       ? Number((payload.cashReceived - localTotal).toFixed(2))
@@ -1054,7 +1085,7 @@ watch(
     }, 0)
   },
 )
-watch(total, (nextTotal) => {
+watch(subtotal, (nextTotal) => {
   if (!appliedCoupon.value) return
   if (nextTotal <= 0) {
     appliedCoupon.value = null
@@ -1098,6 +1129,22 @@ watch(
 )
 
 watch(
+  () => store.clientProfile,
+  (profile) => {
+    if (!profile) return
+    if (profile.displayName?.trim()) {
+      checkoutForm.customer = profile.displayName.trim()
+    } else if (store.currentUser?.name) {
+      checkoutForm.customer = store.currentUser.name
+    }
+    if (!isSalonMode.value && profile.lastAddress?.trim()) {
+      checkoutForm.address = profile.lastAddress.trim()
+    }
+  },
+  { immediate: true, deep: true },
+)
+
+watch(
   () => route.params.tenantSlug,
   async (nextSlug) => {
     const slug = String(nextSlug || '').trim()
@@ -1135,8 +1182,16 @@ onMounted(async () => {
     store.setPublicTenantSlug(currentTenantSlug.value)
     await store.fetchStorefront(currentTenantSlug.value)
   }
-  if (store.currentUser?.name) {
+  if (store.currentUser?.role === 'client') {
+    await store.fetchClientProfile()
+  }
+  if (store.clientProfile.displayName) {
+    checkoutForm.customer = store.clientProfile.displayName
+  } else if (store.currentUser?.name) {
     checkoutForm.customer = store.currentUser.name
+  }
+  if (!isSalonMode.value && store.clientProfile.lastAddress) {
+    checkoutForm.address = store.clientProfile.lastAddress
   }
   try {
     const rawCoupons = localStorage.getItem('delivery-admin-coupons-v1')
@@ -1174,49 +1229,74 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="rounded-[24px] bg-[#F9FAFB] p-4 md:p-6">
+  <section class="rounded-[24px] p-4 md:p-6" :style="{ ...clientThemeVars, backgroundColor: brandPalette.canvas }">
     <Transition name="fade" mode="out-in">
       <div v-if="!checkoutDone" key="shop" class="space-y-6 md:space-y-7">
         <header
-          class="sticky top-2 z-50 overflow-hidden rounded-[20px] border border-white/70 p-3 transition-all duration-300"
+          class="sticky top-2 z-50 overflow-visible rounded-[20px] border border-white/70 p-3 transition-all duration-300"
           :class="headerScrolled ? 'bg-white/78 shadow-[0_12px_28px_rgba(15,23,42,0.12)] backdrop-blur-[10px]' : 'bg-white shadow-[0_4px_20px_rgba(0,0,0,0.03)]'"
         >
-          <div class="absolute inset-x-0 top-0 h-14 bg-gradient-to-r from-emerald-100/60 via-emerald-50/55 to-sky-100/60"></div>
-          <div class="relative flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <span class="grid h-9 w-9 place-items-center rounded-2xl bg-white text-xs font-extrabold text-emerald-700 ring-1 ring-emerald-200/70">
-                {{ storefrontInitials }}
-              </span>
-              <div>
-                <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{{ isSalonMode ? salonTableLabel : 'Tienda online' }}</p>
-                <p class="text-base font-extrabold leading-tight tracking-tight text-slate-900">{{ salonHeaderTitle }}</p>
+          <div class="absolute inset-x-0 top-0 h-14" :style="{ background: `linear-gradient(90deg, ${brandPalette.surface}, ${brandPalette.canvas}, ${brandTint})` }"></div>
+          <div class="relative space-y-3">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <img v-if="storefrontLogoUrl" :src="storefrontLogoUrl" alt="Logo del local" class="h-9 w-9 rounded-2xl object-cover ring-1 ring-slate-200/70" />
+                <span v-else class="grid h-9 w-9 place-items-center rounded-2xl bg-white text-xs font-extrabold ring-1 ring-slate-200/70" :style="{ color: brandPrimaryColor }">
+                  {{ storefrontInitials }}
+                </span>
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{{ isSalonMode ? salonTableLabel : 'Tienda online' }}</p>
+                  <p class="text-base font-extrabold leading-tight tracking-tight text-slate-900">{{ salonHeaderTitle }}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition active:scale-[0.98]"
+                  :class="cartPulse ? 'cart-pop' : ''"
+                  @click="isCartOpen = true"
+                >
+                  <ShoppingCart class="h-4 w-4" />
+                  <span
+                    v-if="cartCount > 0"
+                    class="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow"
+                  >
+                    {{ cartCount }}
+                  </span>
+                </button>
+                <ProfileMenu compact :orders-route="'/cliente/pedidos'" :profile-route="'/cliente/perfil'" />
               </div>
             </div>
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                class="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition active:scale-[0.98]"
-                :class="cartPulse ? 'cart-pop' : ''"
-                @click="isCartOpen = true"
-              >
-                <ShoppingCart class="h-4 w-4" />
-                <span
-                  v-if="cartCount > 0"
-                  class="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow"
-                >
-                  {{ cartCount }}
+
+            <div class="flex flex-col gap-2.5 md:flex-row md:items-center">
+              <div class="relative md:w-[320px] md:shrink-0">
+                <span class="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center">
+                  <Search class="h-4 w-4 text-slate-400" />
                 </span>
-              </button>
-              <ProfileMenu compact :orders-route="'/cliente/pedidos'" :profile-route="'/cliente/perfil'" />
+                <input
+                  v-model="query"
+                  type="text"
+                  :placeholder="isSalonMode ? 'Buscar platos de la mesa...' : 'Buscar producto, combo o categoria...'"
+                  class="w-full rounded-[32px] bg-[#F3F4F6] py-2.5 pl-10 pr-3 text-sm text-slate-700"
+                />
+              </div>
+              <div class="category-strip flex gap-2 overflow-x-auto pb-1 md:flex-1">
+                <button
+                  v-for="category in categories"
+                  :key="category"
+                  type="button"
+                  class="shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition-all duration-200 active:scale-[0.98]"
+                  :class="activeCategory === category ? 'text-white ring-1' : 'bg-slate-100 text-slate-500 hover:bg-slate-200/70 hover:text-slate-700'"
+                  :style="activeCategory === category ? { backgroundColor: brandPrimaryColor, boxShadow: `0 6px 16px ${brandTint}`, borderColor: brandPrimaryColor } : undefined"
+                  @click="activeCategory = category"
+                >
+                  <span class="inline-flex items-center gap-1.5">
+                    <component :is="categoryIcon(category)" class="h-3.5 w-3.5" />
+                    {{ category === 'all' ? 'Todas' : category }}
+                  </span>
+                </button>
+              </div>
             </div>
-          </div>
-          <div v-if="!isSalonMode" class="relative mt-2">
-            <div class="h-[3px] w-full overflow-hidden rounded-full bg-stone-200/90">
-              <div class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300" :style="{ width: `${freeShippingProgress}%` }"></div>
-            </div>
-            <p class="mt-1 text-[11px] font-medium text-slate-500">
-              {{ freeShippingRemaining > 0 ? `Te faltan $${freeShippingRemaining.toLocaleString('es-AR')} para envio gratis` : 'Ya tenes envio gratis' }}
-            </p>
           </div>
         </header>
 
@@ -1227,37 +1307,6 @@ onMounted(async () => {
           {{ orderSyncMessage }}
         </div>
 
-        <div v-if="!isSalonMode" class="sticky top-[90px] z-40 mt-2 rounded-[24px] bg-white/95 p-3 shadow-sm ring-1 ring-white/70 backdrop-blur-xl md:top-[96px]">
-          <div class="flex flex-col gap-2.5 md:flex-row md:items-center">
-            <div class="relative md:w-[320px] md:shrink-0">
-              <span class="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center">
-                <Search class="h-4 w-4 text-slate-400" />
-              </span>
-              <input
-                v-model="query"
-                type="text"
-                placeholder="Buscar producto, combo o categoria..."
-                class="w-full rounded-[32px] bg-[#F3F4F6] py-2.5 pl-10 pr-3 text-sm text-slate-700"
-              />
-            </div>
-            <div class="category-strip flex gap-2 overflow-x-auto pb-1 md:flex-1">
-              <button
-                v-for="category in categories"
-                :key="category"
-                type="button"
-                class="shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition-all duration-200 active:scale-[0.98]"
-                :class="activeCategory === category ? 'bg-emerald-500 text-white shadow-[0_6px_16px_rgba(16,185,129,0.3)] ring-1 ring-emerald-400/60' : 'bg-slate-100 text-slate-500 hover:bg-slate-200/70 hover:text-slate-700'"
-                @click="activeCategory = category"
-              >
-                <span class="inline-flex items-center gap-1.5">
-                  <component :is="categoryIcon(category)" class="h-3.5 w-3.5" />
-                  {{ category === 'all' ? 'Todas' : category }}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-
         <section class="space-y-3">
           <div ref="dailyBannerRef" class="offer-carousel overflow-x-auto pb-1">
             <div class="flex min-w-max snap-x snap-mandatory gap-3">
@@ -1265,6 +1314,7 @@ onMounted(async () => {
                 v-for="slide in offerSlides"
                 :key="slide.id"
                 class="group relative w-[86vw] max-w-[420px] shrink-0 snap-start overflow-hidden rounded-[24px] bg-white shadow-[0_10px_24px_-16px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/60"
+                :style="{ backgroundColor: brandPalette.canvas }"
                 @click="openOfferSlide(slide)"
               >
                 <div class="absolute left-3 top-3 z-10 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-700">{{ slide.badge }}</div>
@@ -1297,14 +1347,14 @@ onMounted(async () => {
           No hay ofertas activas por ahora.
         </div>
 
-        <div v-if="!isSalonMode" class="grid grid-cols-2 gap-4">
+        <div v-if="!isSalonMode" class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           <article
             v-for="product in filteredProducts"
             :key="product.id"
-            class="group relative overflow-hidden rounded-[20px] bg-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5"
+            class="group overflow-hidden rounded-[18px] bg-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5"
           >
             <button type="button" class="w-full text-left" @click="openProductDetail(product)">
-              <div class="aspect-[4/3] overflow-hidden rounded-t-[20px] bg-stone-200/40">
+              <div class="aspect-square overflow-hidden rounded-t-[18px] bg-stone-200/40">
                 <div v-if="!isImageLoaded(imageKeyForProduct(product))" class="skeleton-shimmer h-full w-full"></div>
                 <img
                   v-if="product.imageUrl"
@@ -1317,26 +1367,16 @@ onMounted(async () => {
                 <div v-else class="grid h-full place-items-center text-3xl font-bold text-slate-400">{{ initials(product.name) }}</div>
               </div>
 
-              <div class="p-4 pr-16">
-                <h3 class="text-base font-semibold text-slate-900 capitalize">{{ product.name }}</h3>
-                <p class="mt-1 text-xs text-[#6B7280]">Seleccion premium con preparacion optimizada.</p>
-                <div class="mt-3 flex items-end gap-2">
-                  <p class="text-xl font-bold text-emerald-700">${{ productDisplayPrice(product).toFixed(2) }}</p>
+              <div class="p-3">
+                <h3 class="line-clamp-2 text-sm font-semibold leading-tight text-slate-900 capitalize">{{ product.name }}</h3>
+                <div class="mt-2 flex items-end gap-2">
+                  <p class="text-base font-bold" :style="{ color: brandPrimaryColor }">${{ productDisplayPrice(product).toFixed(2) }}</p>
                   <p v-if="productPromoPrice(product.id) !== null" class="text-xs font-medium text-slate-400 line-through">
                     ${{ Number(product.price).toFixed(2) }}
                   </p>
                 </div>
               </div>
             </button>
-            <button
-              type="button"
-              class="absolute bottom-4 right-4 grid h-11 w-11 place-items-center rounded-full bg-emerald-600 text-white shadow-md transition active:scale-[0.98]"
-              @click.stop="quickAddProduct(product)"
-            >
-              <Check v-if="recentlyAddedProducts[product.id]" class="h-4 w-4" />
-              <Plus v-else class="h-5 w-5" />
-            </button>
-
           </article>
         </div>
 
@@ -1352,19 +1392,19 @@ onMounted(async () => {
               @click="toggleSalonSection(section.category)"
             >
               <span class="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <component :is="categoryIcon(section.category)" class="h-4 w-4 text-emerald-600" />
+                <component :is="categoryIcon(section.category)" class="h-4 w-4" :style="{ color: brandPrimaryColor }" />
                 {{ section.category }}
               </span>
               <span class="text-xs font-semibold text-slate-500">{{ section.products.length }} items</span>
             </button>
-            <div v-if="isSalonSectionOpen(section.category, index)" class="grid grid-cols-2 gap-4 px-3 pb-3">
+            <div v-if="isSalonSectionOpen(section.category, index)" class="grid grid-cols-2 gap-3 px-3 pb-3 sm:grid-cols-3">
               <article
                 v-for="product in section.products"
                 :key="`salon-product-${product.id}`"
-                class="group relative overflow-hidden rounded-[20px] bg-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5"
+                class="group overflow-hidden rounded-[18px] bg-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5"
               >
                 <button type="button" class="w-full text-left" @click="openProductDetail(product)">
-                  <div class="aspect-[4/3] overflow-hidden rounded-t-[20px] bg-stone-200/40">
+                  <div class="aspect-square overflow-hidden rounded-t-[18px] bg-stone-200/40">
                     <div v-if="!isImageLoaded(imageKeyForProduct(product))" class="skeleton-shimmer h-full w-full"></div>
                     <img
                       v-if="product.imageUrl"
@@ -1376,24 +1416,15 @@ onMounted(async () => {
                     />
                     <div v-else class="grid h-full place-items-center text-3xl font-bold text-slate-400">{{ initials(product.name) }}</div>
                   </div>
-                  <div class="p-4 pr-16">
-                    <h3 class="text-base font-semibold text-slate-900 capitalize">{{ product.name }}</h3>
-                    <p class="mt-1 text-xs text-[#6B7280]">Seleccion premium con preparacion optimizada.</p>
-                    <div class="mt-3 flex items-end gap-2">
-                      <p class="text-xl font-bold text-emerald-700">${{ productDisplayPrice(product).toFixed(2) }}</p>
+                  <div class="p-3">
+                    <h3 class="line-clamp-2 text-sm font-semibold leading-tight text-slate-900 capitalize">{{ product.name }}</h3>
+                    <div class="mt-2 flex items-end gap-2">
+                      <p class="text-base font-bold" :style="{ color: brandPrimaryColor }">${{ productDisplayPrice(product).toFixed(2) }}</p>
                       <p v-if="productPromoPrice(product.id) !== null" class="text-xs font-medium text-slate-400 line-through">
                         ${{ Number(product.price).toFixed(2) }}
                       </p>
                     </div>
                   </div>
-                </button>
-                <button
-                  type="button"
-                  class="absolute bottom-4 right-4 grid h-11 w-11 place-items-center rounded-full bg-emerald-600 text-white shadow-md transition active:scale-[0.98]"
-                  @click.stop="quickAddProduct(product)"
-                >
-                  <Check v-if="recentlyAddedProducts[product.id]" class="h-4 w-4" />
-                  <Plus v-else class="h-5 w-5" />
                 </button>
               </article>
             </div>
@@ -1410,7 +1441,8 @@ onMounted(async () => {
             </div>
             <button
               type="button"
-              class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 transition active:scale-[0.98]"
+              class="inline-flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition active:scale-[0.98]"
+              :style="{ backgroundColor: brandPrimaryColor, boxShadow: `0 10px 24px ${brandTint}` }"
               @click="focusDailyBanner"
             >
               <Star class="h-5 w-5" />
@@ -1433,9 +1465,9 @@ onMounted(async () => {
         </Transition>
       </div>
 
-      <div v-else key="done" class="grid min-h-[420px] place-items-center rounded-[24px] bg-emerald-50/40 p-8 text-center ring-1 ring-emerald-200/60">
+      <div v-else key="done" class="grid min-h-[420px] place-items-center rounded-[24px] p-8 text-center ring-1" :style="{ backgroundColor: `${brandPrimaryColor}12`, borderColor: `${brandPrimaryColor}33` }">
         <div>
-          <span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/30">
+          <span class="mx-auto grid h-14 w-14 place-items-center rounded-full text-white shadow-lg" :style="{ backgroundColor: brandPrimaryColor, boxShadow: `0 10px 24px ${brandTint}` }">
             <Check class="h-7 w-7" />
           </span>
           <h3 class="mt-4 text-2xl font-semibold text-slate-900">Pedido en Camino</h3>
@@ -1544,35 +1576,59 @@ onMounted(async () => {
               placeholder="Con cuanto pagas (opcional)"
             />
 
-            <div class="rounded-xl border border-dashed border-emerald-300 bg-emerald-50/70 p-2">
+            <div class="rounded-xl border border-dashed p-2" :style="{ borderColor: `${brandPrimaryColor}66`, backgroundColor: `${brandPrimaryColor}12` }">
               <div class="flex items-center gap-2">
-                <span class="grid h-9 w-9 place-items-center rounded-lg bg-white text-emerald-600 ring-1 ring-emerald-200">
+                <span class="grid h-9 w-9 place-items-center rounded-lg bg-white ring-1" :style="{ color: brandPrimaryColor, borderColor: `${brandPrimaryColor}33` }">
                   <Ticket class="h-4 w-4" />
                 </span>
                 <input
                   v-model="couponCode"
                   type="text"
-                  class="min-w-0 flex-1 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  class="min-w-0 flex-1 rounded-xl border bg-white px-3 py-2 text-sm text-slate-700"
+                  :style="{ borderColor: `${brandPrimaryColor}33` }"
                   placeholder="Codigo de cupon"
                 />
-                <button type="button" class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700" @click="applyCoupon">
+                <button type="button" class="rounded-xl px-3 py-2 text-xs font-semibold text-white transition" :style="{ backgroundColor: brandPrimaryColor }" @click="applyCoupon">
                   Aplicar
                 </button>
               </div>
-              <p v-if="couponFeedback" class="mt-2 text-xs" :class="couponFeedbackTone === 'success' ? 'text-emerald-700' : 'text-rose-700'">
+              <p v-if="couponFeedback" class="mt-2 text-xs" :class="couponFeedbackTone === 'success' ? '' : 'text-rose-700'" :style="couponFeedbackTone === 'success' ? { color: brandPrimaryColor } : undefined">
                 {{ couponFeedback }}
               </p>
             </div>
           </div>
 
-          <div class="flex items-center justify-between text-sm">
-            <span class="text-slate-500">Total</span>
-            <div class="text-right" :class="couponPricePulse ? 'price-shift' : ''">
-              <p v-if="appliedCoupon && couponDiscount > 0" class="text-sm font-semibold text-rose-500 line-through">${{ total }}</p>
-              <p class="text-lg font-bold" :class="appliedCoupon && couponDiscount > 0 ? 'text-emerald-700' : 'text-slate-900'">
-                {{ appliedCoupon && couponDiscount > 0 ? totalAfterCouponLabel : `$${total}` }}
-              </p>
-              <p v-if="appliedCoupon && couponDiscount > 0" class="text-xs font-semibold text-emerald-700">Ahorraste {{ savingsLabel }}</p>
+          <div class="space-y-2 rounded-[18px] p-3" :style="{ backgroundColor: brandPalette.surface }">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-slate-500">Subtotal</span>
+              <span class="font-semibold text-slate-900">{{ subtotalLabel }}</span>
+            </div>
+            <div v-if="!isSalonMode" class="flex items-center justify-between text-sm">
+              <span class="text-slate-500">Envio</span>
+              <span class="font-semibold text-slate-900" :style="effectiveShippingFee === 0 ? { color: brandPrimaryColor } : undefined">
+                {{ effectiveShippingFee === 0 ? 'Gratis' : effectiveShippingFeeLabel }}
+              </span>
+            </div>
+            <div v-if="!isSalonMode && shippingFee > 0" class="text-[11px] text-slate-500">
+              <span v-if="qualifiesForFreeShipping">Superaste el minimo y el envio va gratis.</span>
+              <span v-else-if="hasFreeShippingGoal">Envio base {{ shippingFeeLabel }}. Gratis desde ${{ freeShippingGoal.toLocaleString('es-AR') }}.</span>
+              <span v-else>Envio base {{ shippingFeeLabel }}.</span>
+            </div>
+            <div v-if="appliedCoupon && totalDiscount > 0" class="flex items-center justify-between text-sm">
+              <span class="text-slate-500">Descuento</span>
+              <span class="font-semibold" :style="{ color: brandPrimaryColor }">- {{ savingsLabel }}</span>
+            </div>
+            <div class="flex items-center justify-between border-t border-slate-200 pt-2 text-sm">
+              <span class="text-slate-500">Total</span>
+              <div class="text-right" :class="couponPricePulse ? 'price-shift' : ''">
+                <p v-if="appliedCoupon && totalDiscount > 0" class="text-sm font-semibold text-rose-500 line-through">
+                  ${{ Number(subtotal + (isSalonMode ? 0 : shippingFee)).toLocaleString('es-AR') }}
+                </p>
+                <p class="text-lg font-bold" :style="appliedCoupon && totalDiscount > 0 ? { color: brandPrimaryColor } : undefined">
+                  {{ payableTotalLabel }}
+                </p>
+                <p v-if="appliedCoupon && totalDiscount > 0" class="text-xs font-semibold" :style="{ color: brandPrimaryColor }">Ahorraste {{ savingsLabel }}</p>
+              </div>
             </div>
           </div>
 
@@ -1602,7 +1658,8 @@ onMounted(async () => {
           <div class="mt-4 space-y-3">
             <button
               type="button"
-              class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 active:scale-[0.98]"
+              class="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.98]"
+              :style="{ backgroundColor: brandPrimaryColor }"
               @click="goToLoginForCheckout"
             >
               Ingresar con email y password
@@ -1628,7 +1685,7 @@ onMounted(async () => {
       <div v-if="selectedProduct" class="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-[4px]">
         <div class="flex h-full items-end overflow-y-auto md:grid md:place-items-center md:p-6">
           <article
-            class="bottom-sheet-card h-[90vh] w-full overflow-hidden bg-white md:h-auto md:w-full md:max-w-2xl md:rounded-2xl"
+            class="bottom-sheet-card flex h-[min(88svh,720px)] w-full flex-col overflow-hidden bg-white md:h-[min(88vh,760px)] md:w-full md:max-w-2xl md:rounded-2xl"
             :style="{ transform: `translateY(${bottomSheetTarget === 'product' ? bottomSheetTranslateY : 0}px)` }"
             @touchstart="onBottomSheetTouchStart($event, 'product')"
             @touchmove="onBottomSheetTouchMove"
@@ -1638,7 +1695,7 @@ onMounted(async () => {
               <span class="sheet-handle"></span>
             </div>
             <div class="relative">
-              <div class="aspect-[4/3] bg-gradient-to-br from-slate-100 to-slate-50 p-6">
+              <div class="aspect-[16/9] max-h-[28svh] bg-gradient-to-br from-slate-100 to-slate-50 p-4 md:max-h-[260px] md:p-5">
                 <div class="grid h-full place-items-center overflow-hidden rounded-xl bg-white shadow-sm">
                   <img
                     v-if="selectedProduct.imageUrl"
@@ -1658,10 +1715,10 @@ onMounted(async () => {
               </button>
             </div>
 
-            <div class="space-y-5 p-4 md:p-6">
+            <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 md:p-6">
               <div>
-                <h3 class="text-2xl font-bold text-slate-900">{{ selectedProduct.name }}</h3>
-                <p class="mt-1 text-2xl font-extrabold text-emerald-700">${{ detailTotal }}</p>
+                <h3 class="text-xl font-bold text-slate-900 md:text-2xl">{{ selectedProduct.name }}</h3>
+                <p class="mt-1 text-xl font-extrabold md:text-2xl" :style="{ color: brandPrimaryColor }">${{ detailTotal }}</p>
                 <p class="text-sm text-slate-500">Elegi agregados y quita lo que no te guste.</p>
               </div>
 
@@ -1677,7 +1734,8 @@ onMounted(async () => {
                     <span class="text-slate-700">{{ ingredient }}</span>
                     <input
                       type="checkbox"
-                      class="h-4 w-4 rounded border-slate-300 text-emerald-500"
+                      class="h-4 w-4 rounded border-slate-300"
+                      :style="{ accentColor: brandPrimaryColor }"
                       :checked="isIngredientIncluded(ingredient)"
                       @change="toggleIngredient(ingredient)"
                     />
@@ -1688,22 +1746,30 @@ onMounted(async () => {
 
               <section>
                 <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Extras disponibles</h4>
-                <div class="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
+                <div class="mt-2 space-y-2">
+                  <label
                     v-for="extra in selectedConfig?.extras || []"
                     :key="extra.id"
-                    class="rounded-full px-3 py-2 text-xs font-semibold transition active:scale-[0.98]"
-                    :class="customization.selectedExtras.includes(extra.id) ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-700'"
-                    @click="toggleExtra(extra.id)"
+                    class="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm"
                   >
-                    + {{ extra.name }} ${{ extra.price }}
-                  </button>
+                    <div class="min-w-0">
+                      <span class="block text-slate-700">{{ extra.name }}</span>
+                      <span class="block text-xs font-semibold" :style="{ color: brandPrimaryColor }">+ ${{ extra.price }}</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      class="h-4 w-4 rounded border-slate-300"
+                      :style="{ accentColor: brandPrimaryColor }"
+                      :checked="customization.selectedExtras.includes(extra.id)"
+                      @change="toggleExtra(extra.id)"
+                    />
+                  </label>
                 </div>
+                <p class="mt-1 text-xs text-slate-400">Marca los extras que quieras sumar.</p>
               </section>
             </div>
 
-            <footer class="sticky bottom-0 border-t border-slate-200/70 bg-white p-4 md:rounded-b-2xl">
+            <footer class="shrink-0 border-t border-slate-200/70 bg-white p-4 md:rounded-b-2xl">
               <div class="mb-2 flex items-center justify-between text-sm">
                 <span class="text-slate-500">Total personalizado</span>
                 <span class="text-lg font-bold text-slate-900">${{ detailTotal }}</span>
@@ -1721,7 +1787,7 @@ onMounted(async () => {
       <div v-if="selectedCombo" class="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-[4px]">
         <div class="flex h-full items-end overflow-y-auto md:grid md:place-items-center md:p-6">
           <article
-            class="bottom-sheet-card h-[90vh] w-full overflow-hidden bg-white md:h-auto md:w-full md:max-w-2xl md:rounded-2xl"
+            class="bottom-sheet-card flex h-[min(88svh,760px)] w-full flex-col overflow-hidden bg-white md:h-[min(88vh,820px)] md:w-full md:max-w-2xl md:rounded-2xl"
             :style="{ transform: `translateY(${bottomSheetTarget === 'combo' ? bottomSheetTranslateY : 0}px)` }"
             @touchstart="onBottomSheetTouchStart($event, 'combo')"
             @touchmove="onBottomSheetTouchMove"
@@ -1731,7 +1797,7 @@ onMounted(async () => {
               <span class="sheet-handle"></span>
             </div>
             <div class="relative">
-              <div class="aspect-[4/3] bg-gradient-to-br from-slate-100 to-slate-50 p-6">
+              <div class="aspect-[16/9] max-h-[28svh] bg-gradient-to-br from-slate-100 to-slate-50 p-4 md:max-h-[260px] md:p-5">
                 <div class="grid h-full place-items-center overflow-hidden rounded-xl bg-white shadow-sm">
                   <img :src="selectedCombo.imageUrl" :alt="selectedCombo.name" class="img-fade-in h-full w-full object-cover" />
                 </div>
@@ -1745,13 +1811,13 @@ onMounted(async () => {
               </button>
             </div>
 
-            <div class="space-y-5 p-4 md:p-6">
+            <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 md:p-6">
               <div class="flex items-center justify-between">
                 <h3 class="text-xl font-semibold text-slate-900">Arma tu {{ selectedCombo.name }}</h3>
                 <span class="text-xl font-extrabold text-amber-700">${{ selectedComboTotal }}</span>
               </div>
 
-              <div class="max-h-[45vh] overflow-y-auto pr-1">
+              <div class="pr-1">
                 <article
                   v-for="(product, productIndex) in selectedCombo.products"
                   :key="`combo-product-${product.id}`"
@@ -1837,7 +1903,7 @@ onMounted(async () => {
               </section>
             </div>
 
-            <footer class="sticky bottom-0 border-t border-slate-200 bg-white p-4 md:rounded-b-2xl">
+            <footer class="shrink-0 border-t border-slate-200 bg-white p-4 md:rounded-b-2xl">
               <div class="mb-2 flex items-center justify-between text-sm">
                 <span class="text-slate-500">Total personalizado</span>
                 <span class="text-lg font-bold text-slate-900">${{ selectedComboTotal }}</span>
@@ -2021,4 +2087,3 @@ onMounted(async () => {
 }
 
 </style>
-

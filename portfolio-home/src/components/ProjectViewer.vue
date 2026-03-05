@@ -17,8 +17,11 @@ const showTechOverlay = ref(false)
 
 const frameUrl = computed(() => props.project?.demoUrl || '')
 const canEmbed = computed(() => props.project?.allowEmbed !== false)
-const shouldRenderIframe = computed(() => Boolean(frameUrl.value) && canEmbed.value)
 const isEnglish = computed(() => props.lang === 'en')
+const shouldRenderIframe = computed(() => Boolean(frameUrl.value) && canEmbed.value)
+const impactMetrics = computed(() => props.project?.impactMetrics || [])
+const impactSummary = computed(() => props.project?.impactSummary || [])
+const technicalDetails = computed(() => props.project?.technicalDetails || [])
 
 const runAvailabilityCheck = async () => {
   if (!props.visible || !frameUrl.value) return
@@ -39,8 +42,8 @@ const runAvailabilityCheck = async () => {
       checkMessage.value = ''
       checking.value = false
       infoMessage.value = isEnglish.value
-        ? 'External demo detected. If it does not load in iframe, use "Open External".'
-        : 'Demo externa detectada. Si no carga en iframe, utiliza "Abrir Externo".'
+        ? 'External demo detected. Embedded navigation is enabled for this project.'
+        : 'Demo externa detectada. La navegacion embebida esta habilitada para este proyecto.'
       return
     }
   } catch {
@@ -101,13 +104,10 @@ const toggleTechOverlay = () => {
           <div>
             <p class="font-mono text-[11px] uppercase tracking-[0.14em] text-emerald-200">SYNC_STATUS: OK</p>
             <h3 class="font-[Inter] text-lg font-semibold text-white">{{ project?.name || 'Project Viewer' }}</h3>
-            <p class="font-mono text-[11px] text-emerald-100/90">STREAMS: ACTIVE</p>
+            <p class="font-mono text-[11px] text-emerald-100/90">{{ isEnglish ? 'FLOW: IMPACT -> DEMO -> TECHNICAL' : 'FLUJO: IMPACTO -> DEMO -> TECNICA' }}</p>
           </div>
 
           <div class="flex items-center gap-2">
-            <button class="viewer-btn" @click="toggleTechOverlay">
-              {{ showTechOverlay ? (isEnglish ? 'Hide technical sheet' : 'Ocultar ficha tecnica') : (isEnglish ? 'View technical sheet' : 'Ver ficha tecnica') }}
-            </button>
             <button class="viewer-btn" @click="openExternal">
               <ExternalLink :size="14" /> {{ isEnglish ? 'Open External' : 'Abrir Externo' }}
             </button>
@@ -117,48 +117,92 @@ const toggleTechOverlay = () => {
           </div>
         </header>
 
-        <div class="viewer-frame-wrap relative min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200/40 bg-white/10">
-          <Transition name="holo-drop">
-            <div v-if="showTechOverlay" class="holo-overlay">
-              <div class="holo-grid" />
-              <div class="holo-content">
-                <p class="holo-label">{{ isEnglish ? 'TECHNICAL SHEET' : 'FICHA TECNICA' }}</p>
-                <p class="holo-title">{{ project?.name }}</p>
+        <div class="viewer-frame-wrap relative min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200/40 bg-white/10">
+          <div class="viewer-content">
+            <section class="viewer-block viewer-block--metrics">
+              <div class="viewer-block-head">
+                <p class="viewer-section-label">{{ isEnglish ? 'IMPACT METRICS' : 'METRICAS DE IMPACTO' }}</p>
+                <p class="viewer-summary-title">{{ project?.name }}</p>
+              </div>
+              <div class="viewer-metrics-grid">
+                <article v-for="metric in impactMetrics" :key="`${metric.label}-${metric.value}`" class="viewer-metric-card">
+                  <p class="viewer-metric-value">{{ metric.value }}</p>
+                  <p class="viewer-metric-label">{{ metric.label }}</p>
+                  <p class="viewer-metric-detail">{{ metric.detail }}</p>
+                </article>
+              </div>
+            </section>
 
-                <p class="holo-sub">{{ isEnglish ? 'Stack' : 'Stack' }}</p>
-                <div class="holo-tags">
-                  <span v-for="tag in (project?.stack || [])" :key="tag" class="holo-tag">{{ tag }}</span>
+            <section class="viewer-block">
+              <p class="viewer-section-label">{{ isEnglish ? 'BUSINESS VALUE' : 'VALOR DE NEGOCIO' }}</p>
+              <p class="viewer-summary-text viewer-summary-text--lead">{{ project?.impact }}</p>
+              <ul v-if="impactSummary.length" class="viewer-summary-list">
+                <li v-for="(item, index) in impactSummary" :key="`${index}-${item}`" class="viewer-summary-item">
+                  {{ item }}
+                </li>
+              </ul>
+            </section>
+
+            <section class="viewer-block viewer-block--demo">
+              <div class="viewer-demo-head">
+                <div>
+                  <p class="viewer-section-label">{{ isEnglish ? 'DEMO SECTION' : 'SECCION DEMO' }}</p>
+                  <p class="viewer-demo-text">
+                    {{ isEnglish
+                      ? 'See the interaction flow after understanding the outcome it is designed to improve.'
+                      : 'Visualiza el flujo despues de entender el resultado que busca mejorar.' }}
+                  </p>
+                </div>
+                <button class="viewer-btn" @click="toggleTechOverlay">
+                  {{ showTechOverlay ? (isEnglish ? 'Hide technical details' : 'Ocultar detalles tecnicos') : (isEnglish ? 'View technical details' : 'Ver detalles tecnicos') }}
+                </button>
+              </div>
+              <div class="viewer-demo-surface">
+                <div
+                  v-if="!shouldRenderIframe && frameUrl"
+                  class="viewer-demo-fallback"
+                >
+                  <p class="max-w-2xl text-sm text-emerald-50/95">
+                    {{ isEnglish ? 'This demo runs on its official environment for compatibility and security.' : 'Esta demo se visualiza en su entorno oficial para mantener compatibilidad y seguridad.' }}
+                  </p>
+                  <button class="viewer-btn" @click="openExternal">
+                    <ExternalLink :size="14" /> {{ isEnglish ? 'Open official demo' : 'Abrir demo oficial' }}
+                  </button>
                 </div>
 
-                <p class="holo-sub">{{ isEnglish ? 'Detail' : 'Detalle' }}</p>
-                <ul v-if="project?.technicalDetails?.length" class="holo-list">
-                  <li v-for="(item, index) in project.technicalDetails" :key="`${index}-${item}`" class="holo-list-item">
+                <iframe
+                  v-else-if="frameUrl"
+                  :src="frameUrl"
+                  class="viewer-iframe"
+                  title="Project Demo Viewer"
+                />
+
+                <div v-else class="viewer-demo-fallback">
+                  <p class="max-w-2xl text-sm text-emerald-50/95">
+                    {{ isEnglish ? 'Demo not available yet. External access will be enabled when ready.' : 'La demo aun no esta disponible. El acceso externo se habilitara cuando este lista.' }}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <Transition name="tech-expand">
+              <section v-if="showTechOverlay" class="viewer-block viewer-block--technical">
+                <p class="viewer-section-label">{{ isEnglish ? 'TECHNICAL DETAILS' : 'DETALLES TECNICOS' }}</p>
+                <p class="viewer-summary-title">{{ project?.name }}</p>
+
+                <div class="viewer-tech-tags">
+                  <span v-for="tag in (project?.stack || [])" :key="tag" class="viewer-tech-tag">{{ tag }}</span>
+                </div>
+
+                <ul v-if="technicalDetails.length" class="viewer-summary-list viewer-summary-list--technical">
+                  <li v-for="(item, index) in technicalDetails" :key="`${index}-${item}`" class="viewer-summary-item">
                     {{ item }}
                   </li>
                 </ul>
-                <p v-else class="holo-text">{{ project?.techSummary || project?.impact }}</p>
-              </div>
-            </div>
-          </Transition>
-
-          <div
-            v-if="!shouldRenderIframe && frameUrl"
-            class="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center"
-          >
-            <p class="max-w-2xl text-sm text-emerald-50/95">
-              {{ isEnglish ? 'This demo runs on its official environment for compatibility and security.' : 'Esta demo se visualiza en su entorno oficial para mantener compatibilidad y seguridad.' }}
-            </p>
-            <button class="viewer-btn" @click="openExternal">
-              <ExternalLink :size="14" /> {{ isEnglish ? 'Open official demo' : 'Abrir demo oficial' }}
-            </button>
+                <p v-else class="viewer-summary-text">{{ project?.techSummary || project?.impact }}</p>
+              </section>
+            </Transition>
           </div>
-
-          <iframe
-            v-else-if="frameUrl"
-            :src="frameUrl"
-            class="h-full w-full border-0"
-            title="Project Demo Viewer"
-          />
 
           <div class="scanlines" aria-hidden="true" />
 
@@ -186,6 +230,195 @@ const toggleTechOverlay = () => {
 
 .viewer-header {
   box-shadow: 0 14px 28px rgba(15, 23, 42, 0.32);
+}
+
+.viewer-insight-grid {
+  display: contents;
+}
+
+.viewer-content {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.38), rgba(15, 23, 42, 0.12));
+}
+
+.viewer-block {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 14px 16px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.viewer-block--metrics {
+  background: rgba(236, 253, 245, 0.07);
+}
+
+.viewer-block-head,
+.viewer-demo-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.viewer-metrics-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.viewer-metric-card {
+  border: 1px solid rgba(110, 231, 183, 0.16);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.22);
+  padding: 12px;
+}
+
+.viewer-metric-value {
+  font-family: Inter, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #f0fdf4;
+}
+
+.viewer-metric-label {
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #a7f3d0;
+}
+
+.viewer-metric-detail {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(240, 253, 250, 0.86);
+}
+
+.viewer-summary-card {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 14px 16px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.viewer-summary-card--technical {
+  background: rgba(15, 23, 42, 0.24);
+}
+
+.viewer-section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #a7f3d0;
+}
+
+.viewer-summary-title {
+  margin-top: 4px;
+  font-family: Inter, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.viewer-summary-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 7px;
+  padding: 0;
+  list-style: none;
+}
+
+.viewer-summary-item,
+.viewer-summary-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(240, 253, 250, 0.92);
+}
+
+.viewer-summary-text--lead {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #f8fafc;
+}
+
+.viewer-summary-item {
+  position: relative;
+  padding-left: 12px;
+}
+
+.viewer-summary-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #6ee7b7;
+}
+
+.viewer-tech-tags {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.viewer-tech-tag {
+  border: 1px solid rgba(110, 231, 183, 0.24);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #d1fae5;
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.viewer-demo-text {
+  margin-top: 6px;
+  max-width: 58ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.viewer-demo-surface {
+  margin-top: 14px;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.34);
+}
+
+.viewer-iframe {
+  display: block;
+  width: 100%;
+  min-height: 420px;
+  border: 0;
+  background: #0f172a;
+}
+
+.viewer-demo-fallback {
+  display: flex;
+  min-height: 420px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
 }
 
 .viewer-btn {
@@ -245,119 +478,33 @@ const toggleTechOverlay = () => {
   padding: 10px 12px;
 }
 
-.holo-drop-enter-active,
-.holo-drop-leave-active {
-  transition: opacity 0.26s ease, transform 0.3s ease;
+.tech-expand-enter-active,
+.tech-expand-leave-active {
+  transition: opacity 0.32s ease, transform 0.32s ease;
 }
 
-.holo-drop-enter-from,
-.holo-drop-leave-to {
+.tech-expand-enter-from,
+.tech-expand-leave-to {
   opacity: 0;
-  transform: translateY(-16px);
+  transform: translateY(-8px);
 }
 
-.holo-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 15;
-  border-bottom: 1px solid rgba(94, 234, 212, 0.4);
-  background: linear-gradient(180deg, rgba(8, 47, 73, 0.8), rgba(15, 23, 42, 0.28));
-  box-shadow: 0 16px 32px rgba(14, 116, 144, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+.viewer-block--technical {
+  background: rgba(15, 23, 42, 0.22);
 }
 
-.holo-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(125, 211, 252, 0.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(125, 211, 252, 0.12) 1px, transparent 1px);
-  background-size: 16px 16px;
-  opacity: 0.55;
-  pointer-events: none;
+.viewer-summary-list--technical {
+  margin-top: 14px;
 }
 
-.holo-content {
-  position: relative;
-  padding: 14px 16px 16px;
-  color: #e0f2fe;
-}
+@media (max-width: 960px) {
+  .viewer-metrics-grid {
+    grid-template-columns: 1fr;
+  }
 
-.holo-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  color: #99f6e4;
-}
-
-.holo-title {
-  font-family: Inter, sans-serif;
-  font-size: 16px;
-  font-weight: 600;
-  margin-top: 2px;
-}
-
-.holo-sub {
-  margin-top: 10px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: #a5f3fc;
-  text-transform: uppercase;
-}
-
-.holo-tags {
-  margin-top: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.holo-tag {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  border: 1px solid rgba(165, 243, 252, 0.35);
-  border-radius: 999px;
-  padding: 3px 8px;
-  color: #ecfeff;
-  background: rgba(8, 145, 178, 0.18);
-}
-
-.holo-text {
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.4;
-  color: #e2e8f0;
-  max-width: 1000px;
-}
-
-.holo-list {
-  margin-top: 6px;
-  display: grid;
-  gap: 6px;
-  max-width: 1050px;
-}
-
-.holo-list-item {
-  font-size: 12px;
-  line-height: 1.4;
-  color: #e2e8f0;
-  padding-left: 12px;
-  position: relative;
-}
-
-.holo-list-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 7px;
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: #5eead4;
-  box-shadow: 0 0 10px rgba(94, 234, 212, 0.5);
+  .viewer-block-head,
+  .viewer-demo-head {
+    flex-direction: column;
+  }
 }
 </style>

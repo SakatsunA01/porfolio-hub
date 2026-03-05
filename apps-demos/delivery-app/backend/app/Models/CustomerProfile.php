@@ -13,9 +13,15 @@ class CustomerProfile extends Model
 
     protected $fillable = [
         'tenant_id',
+        'user_id',
         'customer_key',
         'display_name',
+        'phone',
         'last_address',
+        'apartment',
+        'address_reference',
+        'delivery_notes',
+        'avatar_url',
         'is_blocked',
         'notes',
     ];

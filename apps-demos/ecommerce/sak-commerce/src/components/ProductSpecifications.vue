@@ -1,37 +1,57 @@
-﻿<template>
-  <section class="bg-axis-primary pb-16 pt-8">
-    <div class="axis-container grid max-w-7xl grid-cols-1 items-center gap-x-8 gap-y-12 lg:grid-cols-2">
-      <div>
-        <h2 class="text-3xl font-display font-bold tracking-tight text-axis-secondary sm:text-4xl">Especificaciones tecnicas</h2>
-        <p class="mt-4 text-axis-tertiary">{{ product.description }}</p>
+<template>
+  <section class="bg-bg-primary py-section-sm">
+    <div class="mx-auto max-w-container px-6">
+      <div class="max-w-3xl">
+        <div
+          v-for="(feature, index) in product.details"
+          :key="feature.name"
+          class="border-b border-bg-secondary py-6"
+        >
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-6 text-left"
+            @click="toggle(index)"
+          >
+            <span class="font-serif text-lg tracking-wide text-text-primary">
+              {{ feature.name }}
+            </span>
+            <span class="text-sm tracking-wide text-text-secondary">
+              {{ openIndexes.includes(index) ? 'Cerrar' : 'Abrir' }}
+            </span>
+          </button>
 
-        <dl class="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
-          <div v-for="feature in product.details" :key="feature.name" class="rounded-xl border border-slate-200 bg-white/70 p-4">
-            <dt class="text-sm font-semibold text-axis-secondary">{{ feature.name }}</dt>
-            <dd class="mt-2 text-sm text-axis-tertiary">{{ feature.description }}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <div class="grid grid-cols-2 grid-rows-2 gap-4 sm:gap-6">
-        <img
-          v-for="(image, index) in product.images.slice(0, 4)"
-          :key="index"
-          :src="getImageUrl(image)"
-          :alt="product.name"
-          class="h-full w-full rounded-xl border border-slate-200 bg-axis-neutral object-cover"
-        />
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out overflow-hidden"
+            enter-from-class="max-h-0 opacity-0"
+            enter-to-class="max-h-40 opacity-100"
+            leave-active-class="transition-all duration-200 ease-out overflow-hidden"
+            leave-from-class="max-h-40 opacity-100"
+            leave-to-class="max-h-0 opacity-0"
+          >
+            <div v-if="openIndexes.includes(index)" class="pr-12 pt-4 text-text-secondary">
+              <p>{{ feature.description }}</p>
+            </div>
+          </Transition>
+        </div>
       </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import type { Product } from '../data/products';
+import { ref } from 'vue'
+import type { Product } from '../types/catalog'
 
-defineProps<{ product: Product }>();
+defineProps<{ product: Product }>()
 
-const getImageUrl = (path: string) => {
-  return new URL(path, import.meta.url).href;
-};
+const openIndexes = ref<number[]>([0])
+
+const toggle = (index: number) => {
+  if (openIndexes.value.includes(index)) {
+    openIndexes.value = openIndexes.value.filter((item) => item !== index)
+    return
+  }
+
+  openIndexes.value = [...openIndexes.value, index]
+}
 </script>

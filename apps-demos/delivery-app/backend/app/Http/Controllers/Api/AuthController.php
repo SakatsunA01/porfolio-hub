@@ -59,6 +59,8 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'phone' => $user->phone,
+                'avatar_url' => $user->avatar_url,
                 'role' => $user->roleModel?->name ?? $user->role,
                 'tenant_id' => $user->tenant_id,
                 'tenant_slug' => $user->tenant?->slug,
@@ -75,6 +77,37 @@ class AuthController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+            'phone' => $user->phone,
+            'avatar_url' => $user->avatar_url,
+            'role' => $user->roleModel?->name ?? $user->role,
+            'is_active' => $user->is_active,
+            'tenant_id' => $user->tenant_id,
+            'tenant_slug' => $user->tenant?->slug,
+            'tenant_name' => $user->tenant?->name,
+        ]);
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user()->load(['roleModel', 'tenant']);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'avatar_url' => ['sometimes', 'nullable', 'string', 'max:65535'],
+        ]);
+
+        $user->update([
+            'name' => $data['name'],
+            'phone' => $data['phone'] ?? null,
+            'avatar_url' => $data['avatar_url'] ?? null,
+        ]);
+
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'avatar_url' => $user->avatar_url,
             'role' => $user->roleModel?->name ?? $user->role,
             'is_active' => $user->is_active,
             'tenant_id' => $user->tenant_id,
@@ -144,6 +177,8 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'phone' => $user->phone,
+                'avatar_url' => $user->avatar_url,
                 'role' => $user->roleModel?->name ?? $user->role,
                 'tenant_id' => $user->tenant_id,
                 'tenant_slug' => $user->tenant?->slug,

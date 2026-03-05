@@ -10,9 +10,10 @@ useOrdersRealtime()
 const isOnline = ref(true)
 const successPulse = ref(false)
 const queueOpen = ref(true)
-const slideValue = ref(0)
 const themePreference = ref<'auto' | 'light' | 'dark'>('auto')
 const currentHour = ref(new Date().getHours())
+const selectedOrderId = ref<number | null>(null)
+const selectedBatchIds = ref<number[]>([])
 const currentDriverId = computed(() => store.shiftDriverId || store.currentUser?.id || null)
 let hourTicker = 0
 
@@ -29,6 +30,19 @@ const activeMission = computed<Order | null>(
 )
 
 const pendingOrders = computed(() => ordersForDriver.value.filter((order) => !activeMission.value || order.id !== activeMission.value.id))
+const readyQueueOrders = computed(() => pendingOrders.value.filter((order) => order.status === 'ready'))
+const selectableOrders = computed(() => {
+  const rows: Order[] = []
+  if (activeMission.value) rows.push(activeMission.value)
+  rows.push(...pendingOrders.value)
+  return rows
+})
+const previewOrder = computed<Order | null>(
+  () => selectableOrders.value.find((order) => order.id === selectedOrderId.value) || activeMission.value || pendingOrders.value[0] || null,
+)
+const selectedActionOrder = computed<Order | null>(
+  () => ordersForDriver.value.find((order) => order.id === selectedOrderId.value) || activeMission.value || null,
+)
 const driverDeliveredToday = computed(() => {
   const now = new Date()
   return store.orders.filter((order) => {
@@ -40,18 +54,20 @@ const driverDeliveredToday = computed(() => {
 const driverTodayCount = computed(() => driverDeliveredToday.value.length)
 const driverTodayGain = computed(() => driverDeliveredToday.value.reduce((acc, order) => acc + Number(order.total || 0), 0))
 
-const mapQuery = computed(() => activeMission.value?.address?.trim() || '')
+const mapQuery = computed(() => previewOrder.value?.address?.trim() || '')
+const mapEmbedUrl = computed(() =>
+  mapQuery.value
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery.value)}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+    : '',
+)
 const mapDirectionsUrl = computed(() =>
   mapQuery.value
     ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mapQuery.value)}&travelmode=driving`
     : '',
 )
-const wazeDirectionsUrl = computed(() =>
-  mapQuery.value
-    ? `https://waze.com/ul?q=${encodeURIComponent(mapQuery.value)}&navigate=yes`
-    : '',
-)
 const phoneHref = computed(() => `tel:+5491111111111`)
+const selectedBatchOrders = computed(() => readyQueueOrders.value.filter((order) => selectedBatchIds.value.includes(order.id)))
+const isPreviewingDifferentOrder = computed(() => Boolean(activeMission.value && previewOrder.value && activeMission.value.id !== previewOrder.value.id))
 
 const estimateDistance = (orderId: number) => `${((orderId % 7) + 1.2).toFixed(1)} km`
 
@@ -73,14 +89,13 @@ const confirmDelivery = (orderId: number) => {
   }, 1100)
 }
 
-const missionActionLabel = computed(() => {
-  if (!activeMission.value) return 'Sin mision activa'
-  return activeMission.value.status === 'ready' ? 'Retirar pedido' : 'Ya lo entregue'
+const previewOrderCode = computed(() => {
+  if (!previewOrder.value) return ''
+  return `#${String(previewOrder.value.id).padStart(4, '0')}`
 })
-
-const missionOrderCode = computed(() => {
-  if (!activeMission.value) return ''
-  return `#${String(activeMission.value.id).padStart(4, '0')}`
+const selectedActionOrderCode = computed(() => {
+  if (!selectedActionOrder.value) return ''
+  return `#${String(selectedActionOrder.value.id).padStart(4, '0')}`
 })
 
 const autoDarkMode = computed(() => currentHour.value >= 19 || currentHour.value < 7)
@@ -102,22 +117,26 @@ const resetThemeAuto = () => {
   themePreference.value = 'auto'
 }
 
-const commitMissionAction = () => {
-  if (!activeMission.value || !isOnline.value) return
-  if (activeMission.value.status === 'ready') {
-    takeMission(activeMission.value.id)
-  } else {
-    confirmDelivery(activeMission.value.id)
-  }
+const selectOrder = (orderId: number) => {
+  selectedOrderId.value = orderId
 }
 
-const onSlideInput = () => {
-  if (slideValue.value >= 98) {
-    commitMissionAction()
-    window.setTimeout(() => {
-      slideValue.value = 0
-    }, 150)
+const toggleBatchOrder = (orderId: number) => {
+  if (selectedBatchIds.value.includes(orderId)) {
+    selectedBatchIds.value = selectedBatchIds.value.filter((id) => id !== orderId)
+    return
   }
+  selectedBatchIds.value = [...selectedBatchIds.value, orderId]
+}
+
+const isBatchSelected = (orderId: number) => selectedBatchIds.value.includes(orderId)
+
+const takeSelectedOrders = async () => {
+  if (!currentDriverId.value || !selectedBatchOrders.value.length || !isOnline.value) return
+  for (const order of selectedBatchOrders.value) {
+    await store.leaveForDelivery(order.id, currentDriverId.value)
+  }
+  selectedBatchIds.value = []
 }
 
 onMounted(() => {
@@ -137,6 +156,28 @@ onBeforeUnmount(() => {
 watch(themePreference, () => {
   localStorage.setItem('delivery-driver-theme-v1', themePreference.value)
 })
+
+watch(
+  selectableOrders,
+  (orders) => {
+    if (!orders.length) {
+      selectedOrderId.value = null
+      return
+    }
+    if (!selectedOrderId.value || !orders.some((order) => order.id === selectedOrderId.value)) {
+      selectedOrderId.value = orders[0]?.id || null
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  readyQueueOrders,
+  (orders) => {
+    selectedBatchIds.value = selectedBatchIds.value.filter((id) => orders.some((order) => order.id === id))
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -148,7 +189,7 @@ watch(themePreference, () => {
     ]"
   >
     <header
-      class="rounded-[24px] p-4"
+      class="relative z-30 overflow-visible rounded-[24px] p-4"
       :class="isDarkTheme ? 'border border-[#334155] bg-[#1E293B]' : 'bg-white shadow-[0_4px_20px_rgba(0,0,0,0.03)]'"
     >
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -190,29 +231,81 @@ watch(themePreference, () => {
       class="rounded-[24px] p-5"
       :class="isDarkTheme ? 'border border-[#334155] bg-[#1E293B]' : 'bg-white shadow-[0_4px_20px_rgba(0,0,0,0.03)]'"
     >
-      <div v-if="activeMission" class="space-y-4">
+      <div v-if="previewOrder" class="space-y-4">
+        <div class="grid gap-3 md:grid-cols-2">
+          <div
+            class="rounded-[18px] border px-3 py-3"
+            :class="activeMission
+              ? (isDarkTheme ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200' : 'border-emerald-200 bg-emerald-50 text-emerald-800')
+              : (isDarkTheme ? 'border-[#334155] bg-[#0F172A] text-[#94A3B8]' : 'border-slate-200 bg-slate-50 text-slate-600')"
+          >
+            <p class="text-[11px] font-semibold uppercase tracking-[0.14em]">Pedido activo</p>
+            <p class="mt-1 text-sm font-bold">
+              {{ activeMission ? `#${String(activeMission.id).padStart(4, '0')}` : 'Sin pedido en curso' }}
+            </p>
+            <p class="mt-1 text-xs">
+              {{ activeMission ? (activeMission.status === 'ready' ? 'Listo para retirar' : 'Actualmente en entrega') : 'Todavia no tomaste ningun pedido.' }}
+            </p>
+          </div>
+          <div
+            class="rounded-[18px] border px-3 py-3"
+            :class="isPreviewingDifferentOrder
+              ? (isDarkTheme ? 'border-sky-500/40 bg-sky-500/10 text-sky-200' : 'border-sky-200 bg-sky-50 text-sky-800')
+              : (isDarkTheme ? 'border-[#334155] bg-[#0F172A] text-[#94A3B8]' : 'border-slate-200 bg-slate-50 text-slate-600')"
+          >
+            <p class="text-[11px] font-semibold uppercase tracking-[0.14em]">Pedido seleccionado</p>
+            <p class="mt-1 text-sm font-bold">{{ previewOrderCode }}</p>
+            <p class="mt-1 text-xs">
+              {{ isPreviewingDifferentOrder ? 'Estas viendo otro pedido de la cola en el mapa.' : 'El mapa muestra el mismo pedido que esta activo.' }}
+            </p>
+          </div>
+        </div>
         <div class="flex items-center justify-between gap-2">
           <span
             class="inline-flex items-center rounded-xl px-3 py-1 text-sm font-bold"
             :class="isDarkTheme ? 'border border-emerald-400/70 bg-[#0F172A] text-[#F8FAFC]' : 'bg-slate-900 text-white'"
           >
-            {{ missionOrderCode }}
+            {{ previewOrderCode }}
           </span>
-          <span
-            class="rounded-full px-2.5 py-1 text-xs font-semibold"
-            :class="[
-              isDarkTheme ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700',
-              activeMission.status === 'onroute' ? 'status-glow' : '',
-            ]"
-          >
-            {{ activeMission.status === 'ready' ? 'En local' : 'En camino' }}
-          </span>
+          <div class="flex items-center gap-2">
+            <span
+              class="rounded-full px-2.5 py-1 text-xs font-semibold"
+              :class="[
+                isPreviewingDifferentOrder
+                  ? (isDarkTheme ? 'bg-sky-500/20 text-sky-300' : 'bg-sky-100 text-sky-700')
+                  : (isDarkTheme ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700'),
+                previewOrder.status === 'onroute' ? 'status-glow' : '',
+              ]"
+            >
+              {{ previewOrder.status === 'ready' ? 'En local' : 'En camino' }}
+            </span>
+            <span
+              v-if="isPreviewingDifferentOrder"
+              class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+              :class="isDarkTheme ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-sky-100 text-sky-700'"
+            >
+              Vista previa
+            </span>
+          </div>
         </div>
         <div>
           <p class="text-xs uppercase tracking-wide" :class="isDarkTheme ? 'text-[#94A3B8]' : 'text-slate-500'">Direccion de entrega</p>
-          <p class="mt-1 text-2xl font-extrabold leading-tight" :class="isDarkTheme ? 'text-[#F8FAFC]' : 'text-slate-900'">{{ activeMission.address }}</p>
+          <p class="mt-1 text-2xl font-extrabold leading-tight" :class="isDarkTheme ? 'text-[#F8FAFC]' : 'text-slate-900'">{{ previewOrder.address }}</p>
         </div>
-        <div class="grid gap-2 sm:grid-cols-2">
+        <div class="overflow-hidden rounded-[20px] border" :class="isDarkTheme ? 'border-[#334155] bg-[#0F172A]' : 'border-slate-200 bg-slate-100'">
+          <iframe
+            v-if="mapEmbedUrl"
+            :src="mapEmbedUrl"
+            class="h-64 w-full border-0"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            title="Mapa de entrega"
+          ></iframe>
+          <div v-else class="grid h-64 place-items-center text-sm" :class="isDarkTheme ? 'text-[#94A3B8]' : 'text-slate-500'">
+            No se pudo generar el mapa para esta direccion.
+          </div>
+        </div>
+        <div>
           <a
             v-if="mapDirectionsUrl"
             :href="mapDirectionsUrl"
@@ -224,33 +317,22 @@ watch(themePreference, () => {
             <Navigation class="h-4 w-4" />
             Abrir Google Maps
           </a>
-          <a
-            v-if="wazeDirectionsUrl"
-            :href="wazeDirectionsUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white transition active:scale-[0.98]"
-            :class="isDarkTheme ? 'bg-[#1D4ED8]' : 'bg-slate-900'"
-          >
-            <MapPin class="h-4 w-4" />
-            Abrir Waze
-          </a>
         </div>
         <div class="flex items-center justify-between rounded-[16px] px-3 py-2" :class="isDarkTheme ? 'bg-[#0F172A]' : 'bg-slate-50'">
           <div>
-            <p class="text-sm font-semibold" :class="isDarkTheme ? 'text-[#F8FAFC]' : 'text-slate-900'">{{ activeMission.customer }}</p>
+            <p class="text-sm font-semibold" :class="isDarkTheme ? 'text-[#F8FAFC]' : 'text-slate-900'">{{ previewOrder.customer }}</p>
             <p class="text-xs" :class="isDarkTheme ? 'text-[#94A3B8]' : 'text-slate-500'">Cliente</p>
           </div>
           <div class="flex items-center gap-2">
             <a :href="phoneHref" class="icon-btn"><Phone class="h-5 w-5" /></a>
-            <a :href="`https://wa.me/?text=${encodeURIComponent(`Hola, voy con tu pedido ${missionOrderCode}.`)}`" target="_blank" rel="noopener noreferrer" class="icon-btn">
+            <a :href="`https://wa.me/?text=${encodeURIComponent(`Hola, voy con tu pedido ${previewOrderCode}.`)}`" target="_blank" rel="noopener noreferrer" class="icon-btn">
               <MessageCircle class="h-5 w-5" />
             </a>
           </div>
         </div>
         <div class="rounded-[16px] px-3 py-2" :class="isDarkTheme ? 'bg-[#0F172A]' : 'bg-slate-50'">
           <p class="text-xs font-semibold uppercase tracking-wide" :class="isDarkTheme ? 'text-[#94A3B8]' : 'text-slate-500'">Resumen</p>
-          <p class="mt-1 text-sm font-semibold" :class="isDarkTheme ? 'text-[#F8FAFC]' : 'text-slate-800'">{{ orderSummary(activeMission) }}</p>
+          <p class="mt-1 text-sm font-semibold" :class="isDarkTheme ? 'text-[#F8FAFC]' : 'text-slate-800'">{{ orderSummary(previewOrder) }}</p>
         </div>
       </div>
       <div v-else class="rounded-[16px] p-4 text-sm" :class="isDarkTheme ? 'bg-[#0F172A] text-[#94A3B8]' : 'bg-slate-50 text-slate-500'">
@@ -271,15 +353,76 @@ watch(themePreference, () => {
         </span>
       </button>
       <div v-if="queueOpen" class="mt-3 space-y-2">
+        <div
+          v-if="readyQueueOrders.length"
+          class="flex flex-wrap items-center justify-between gap-2 rounded-[16px] px-3 py-2"
+          :class="isDarkTheme ? 'bg-[#0F172A] border border-[#334155]' : 'bg-slate-50'"
+        >
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wide" :class="isDarkTheme ? 'text-[#94A3B8]' : 'text-slate-500'">Seleccion multiple</p>
+            <p class="text-sm font-semibold" :class="isDarkTheme ? 'text-[#F8FAFC]' : 'text-slate-900'">
+              {{ selectedBatchOrders.length }} pedido(s) listos para tomar
+            </p>
+          </div>
+          <button
+            type="button"
+            class="rounded-full px-4 py-2 text-xs font-bold text-white transition active:scale-[0.98]"
+            :class="selectedBatchOrders.length && isOnline ? (isDarkTheme ? 'bg-[#2563EB]' : 'bg-emerald-600') : 'bg-slate-400 cursor-not-allowed'"
+            :disabled="!selectedBatchOrders.length || !isOnline"
+            @click="takeSelectedOrders"
+          >
+            Tomar seleccionados
+          </button>
+        </div>
         <article
           v-for="order in pendingOrders"
           :key="`pending-${order.id}`"
-          class="rounded-[16px] px-3 py-2"
-          :class="isDarkTheme ? 'bg-[#0F172A] border border-[#334155]' : 'bg-slate-100'"
+          class="rounded-[16px] px-3 py-2 transition active:scale-[0.99]"
+          :class="[
+            isDarkTheme ? 'bg-[#0F172A] border border-[#334155]' : 'bg-slate-100',
+            selectedOrderId === order.id
+              ? (isDarkTheme ? 'ring-2 ring-emerald-400/70' : 'ring-2 ring-emerald-500')
+              : '',
+          ]"
+          @click="selectOrder(order.id)"
         >
           <div class="flex items-center justify-between gap-2">
-            <p class="text-xs font-semibold" :class="isDarkTheme ? 'text-[#F8FAFC]' : 'text-slate-700'">#{{ String(order.id).padStart(4, '0') }}</p>
-            <p class="text-xs font-semibold" :class="isDarkTheme ? 'text-[#94A3B8]' : 'text-slate-500'">A {{ estimateDistance(order.id) }}</p>
+            <div class="flex items-center gap-2">
+              <p class="text-xs font-semibold" :class="isDarkTheme ? 'text-[#F8FAFC]' : 'text-slate-700'">#{{ String(order.id).padStart(4, '0') }}</p>
+              <span
+                v-if="selectedOrderId === order.id"
+                class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                :class="isDarkTheme ? 'bg-sky-500/20 text-sky-300' : 'bg-sky-100 text-sky-700'"
+              >
+                Seleccionado
+              </span>
+              <span
+                v-if="activeMission && activeMission.id === order.id"
+                class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                :class="isDarkTheme ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700'"
+              >
+                Activo
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              <label
+                v-if="order.status === 'ready'"
+                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold"
+                :class="isBatchSelected(order.id)
+                  ? (isDarkTheme ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700')
+                  : (isDarkTheme ? 'bg-[#1E293B] text-[#94A3B8]' : 'bg-white text-slate-500')"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="h-3.5 w-3.5 rounded border-slate-300"
+                  :checked="isBatchSelected(order.id)"
+                  @change="toggleBatchOrder(order.id)"
+                />
+                Seleccionar
+              </label>
+              <p class="text-xs font-semibold" :class="isDarkTheme ? 'text-[#94A3B8]' : 'text-slate-500'">A {{ estimateDistance(order.id) }}</p>
+            </div>
           </div>
           <p class="mt-1 truncate text-sm" :class="isDarkTheme ? 'text-[#94A3B8]' : 'text-slate-600'">{{ order.address }}</p>
         </article>
@@ -288,24 +431,41 @@ watch(themePreference, () => {
     </article>
 
     <div
-      v-if="activeMission"
+      v-if="selectedActionOrder"
       class="fixed inset-x-0 bottom-0 z-40 border-t p-3 backdrop-blur"
       :class="isDarkTheme ? 'border-[#334155] bg-[#0F172A]/95' : 'border-slate-200 bg-white/95'"
     >
       <div class="mx-auto w-full max-w-3xl space-y-2">
-        <p class="text-center text-[11px] font-semibold" :class="isDarkTheme ? 'text-[#94A3B8]' : 'text-slate-500'">Desliza para confirmar</p>
-        <div class="slide-wrap" :class="isDarkTheme ? 'slide-wrap-dark' : ''">
-          <Truck class="slide-icon h-4 w-4" />
-          <input
-            v-model.number="slideValue"
-            type="range"
-            min="0"
-            max="100"
-            class="slide-control"
-            :disabled="!isOnline"
-            @input="onSlideInput"
-          />
-          <span class="slide-label">{{ missionActionLabel }}</span>
+        <div
+          class="flex items-center justify-between rounded-2xl px-3 py-2 text-xs font-semibold"
+          :class="isDarkTheme ? 'bg-[#1E293B] text-[#E2E8F0]' : 'bg-slate-100 text-slate-700'"
+        >
+          <span>Pedido seleccionado para accion</span>
+          <span>{{ selectedActionOrderCode }}</span>
+        </div>
+        <div class="flex w-full flex-col gap-2 sm:flex-row">
+        <button
+          v-if="selectedActionOrder.status === 'ready'"
+          type="button"
+          class="inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-white transition active:scale-[0.98]"
+          :class="!isOnline ? 'cursor-not-allowed bg-slate-400' : (isDarkTheme ? 'bg-[#2563EB]' : 'bg-emerald-600')"
+          :disabled="!isOnline"
+          @click="takeMission(selectedActionOrder.id)"
+        >
+          <Truck class="h-4 w-4" />
+          Tomar pedido
+        </button>
+        <button
+          v-else
+          type="button"
+          class="inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-white transition active:scale-[0.98]"
+          :class="!isOnline ? 'cursor-not-allowed bg-slate-400' : (isDarkTheme ? 'bg-[#16A34A]' : 'bg-slate-900')"
+          :disabled="!isOnline"
+          @click="confirmDelivery(selectedActionOrder.id)"
+        >
+          <CheckCircle2 class="h-4 w-4" />
+          Entregar pedido
+        </button>
         </div>
       </div>
     </div>
@@ -372,81 +532,6 @@ watch(themePreference, () => {
 
 .icon-btn:active {
   transform: scale(0.97);
-}
-
-.slide-wrap {
-  position: relative;
-  border-radius: 9999px;
-  background: rgb(15 23 42);
-  height: 3.25rem;
-  display: flex;
-  align-items: center;
-  padding: 0 0.8rem;
-}
-
-.slide-wrap-dark {
-  background: linear-gradient(135deg, rgb(4 120 87), rgb(16 185 129));
-}
-
-.slide-icon {
-  color: rgb(148 163 184);
-  z-index: 2;
-}
-
-.slide-label {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  color: white;
-  font-size: 0.85rem;
-  font-weight: 700;
-  pointer-events: none;
-}
-
-.slide-control {
-  width: 100%;
-  margin-left: 0.55rem;
-  appearance: none;
-  background: transparent;
-  z-index: 3;
-}
-
-.slide-control::-webkit-slider-runnable-track {
-  height: 2.35rem;
-  border-radius: 9999px;
-  background: rgb(30 41 59);
-}
-
-.slide-control::-webkit-slider-thumb {
-  appearance: none;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 9999px;
-  background: rgb(16 185 129);
-  border: 2px solid white;
-  margin-top: 0;
-}
-
-.slide-control::-moz-range-track {
-  height: 2.35rem;
-  border-radius: 9999px;
-  background: rgb(30 41 59);
-}
-
-.slide-control::-moz-range-thumb {
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 9999px;
-  background: rgb(16 185 129);
-  border: 2px solid white;
-}
-
-.slide-wrap-dark .slide-control::-webkit-slider-thumb {
-  background: linear-gradient(135deg, rgb(6 95 70), rgb(16 185 129));
-}
-
-.slide-wrap-dark .slide-control::-moz-range-thumb {
-  background: linear-gradient(135deg, rgb(6 95 70), rgb(16 185 129));
 }
 
 .status-glow {

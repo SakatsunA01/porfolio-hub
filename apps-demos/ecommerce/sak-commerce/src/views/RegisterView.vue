@@ -1,81 +1,151 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8">
-      <div>
-        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Create a new account
-        </h2>
+  <section class="flex min-h-screen items-center justify-center bg-bg-secondary px-6 py-section-sm">
+    <div class="w-full max-w-lg rounded-[24px] border border-bg-secondary bg-white p-8 md:p-10">
+      <div class="mb-10 text-center">
+        <p class="text-sm tracking-wide text-text-secondary">Registro</p>
+        <h1 class="mt-3 font-serif text-4xl tracking-wide text-text-primary">
+          Crear cuenta
+        </h1>
       </div>
-      <form class="mt-8 space-y-6" @submit.prevent="handleRegister">
-        <div class="rounded-md shadow-sm -space-y-px">
-          <div>
-            <label for="name" class="sr-only">Name</label>
-            <input id="name" name="name" type="text" autocomplete="name" required
-                   class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                   placeholder="Name" v-model="name">
-          </div>
-          <div>
-            <label for="email-address" class="sr-only">Email address</label>
-            <input id="email-address" name="email" type="email" autocomplete="email" required
-                   class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                   placeholder="Email address" v-model="email">
-          </div>
-          <div>
-            <label for="password" class="sr-only">Password</label>
-            <input id="password" name="password" type="password" autocomplete="new-password" required
-                   class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                   placeholder="Password" v-model="password">
-          </div>
-          <div>
-            <label for="password-confirm" class="sr-only">Confirm Password</label>
-            <input id="password-confirm" name="password_confirmation" type="password" autocomplete="new-password" required
-                   class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                   placeholder="Confirm Password" v-model="password_confirmation">
-          </div>
+
+      <form class="space-y-6" @submit.prevent="handleRegister">
+        <div>
+          <label class="mb-2 block text-sm tracking-wide text-text-secondary">Nombre</label>
+          <input
+            v-model="form.name"
+            type="text"
+            class="w-full rounded-xl border bg-bg-primary px-5 py-4 text-base text-text-primary outline-none transition duration-200 ease-out"
+            :class="fieldClass(errors.name)"
+            @input="validateField('name')"
+          />
+          <p v-if="errors.name" class="mt-2 text-sm text-state-error">{{ errors.name }}</p>
         </div>
 
         <div>
-          <button type="submit"
-                  class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-            Register
-          </button>
+          <label class="mb-2 block text-sm tracking-wide text-text-secondary">Email</label>
+          <input
+            v-model="form.email"
+            type="email"
+            class="w-full rounded-xl border bg-bg-primary px-5 py-4 text-base text-text-primary outline-none transition duration-200 ease-out"
+            :class="fieldClass(errors.email)"
+            @input="validateField('email')"
+          />
+          <p v-if="errors.email" class="mt-2 text-sm text-state-error">{{ errors.email }}</p>
         </div>
-        <p v-if="error" class="mt-2 text-center text-sm text-red-600">{{ error }}</p>
+
+        <div>
+          <label class="mb-2 block text-sm tracking-wide text-text-secondary">Password</label>
+          <input
+            v-model="form.password"
+            type="password"
+            class="w-full rounded-xl border bg-bg-primary px-5 py-4 text-base text-text-primary outline-none transition duration-200 ease-out"
+            :class="fieldClass(errors.password)"
+            @input="validateField('password')"
+          />
+          <p v-if="errors.password" class="mt-2 text-sm text-state-error">{{ errors.password }}</p>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm tracking-wide text-text-secondary">Confirmar password</label>
+          <input
+            v-model="form.password_confirmation"
+            type="password"
+            class="w-full rounded-xl border bg-bg-primary px-5 py-4 text-base text-text-primary outline-none transition duration-200 ease-out"
+            :class="fieldClass(errors.password_confirmation)"
+            @input="validateField('password_confirmation')"
+          />
+          <p v-if="errors.password_confirmation" class="mt-2 text-sm text-state-error">
+            {{ errors.password_confirmation }}
+          </p>
+        </div>
+
+        <p v-if="submitError" class="text-sm text-state-error">{{ submitError }}</p>
+
+        <button
+          type="submit"
+          class="inline-flex w-full items-center justify-center rounded-xl bg-text-primary px-6 py-4 text-sm uppercase tracking-widest text-bg-primary transition duration-200 ease-out hover:opacity-90"
+        >
+          Crear cuenta
+        </button>
       </form>
+
+      <p class="mt-8 text-center text-sm text-text-secondary">
+        ¿Ya tenés cuenta?
+        <router-link to="/login" class="text-text-primary transition duration-200 ease-out hover:opacity-80">
+          Ingresar
+        </router-link>
+      </p>
     </div>
-  </div>
+  </section>
 </template>
 
-<script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import api, { getCsrfCookie } from '../services/api';
+<script setup lang="ts">
+import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { getCsrfCookie, register as apiRegister } from '../services/api'
 
-const name = ref('');
-const email = ref('');
-const password = ref('');
-const password_confirmation = ref('');
-const error = ref(null);
-const router = useRouter();
+type RegisterField = 'name' | 'email' | 'password' | 'password_confirmation'
+
+const router = useRouter()
+
+const form = reactive({
+  name: '',
+  email: '',
+  password: '',
+  password_confirmation: '',
+})
+
+const errors = reactive<Record<RegisterField, string>>({
+  name: '',
+  email: '',
+  password: '',
+  password_confirmation: '',
+})
+
+const submitError = ref('')
+
+const fieldClass = (error: string) =>
+  error ? 'border-state-error' : 'border-bg-secondary focus:border-text-secondary'
+
+const validateField = (field: RegisterField) => {
+  const value = form[field].trim()
+
+  switch (field) {
+    case 'name':
+      errors.name = value.length >= 3 ? '' : 'Ingresá un nombre válido.'
+      break
+    case 'email':
+      errors.email = /\S+@\S+\.\S+/.test(value) ? '' : 'Ingresá un email válido.'
+      break
+    case 'password':
+      errors.password = value.length >= 6 ? '' : 'La contraseña debe tener al menos 6 caracteres.'
+      if (form.password_confirmation) {
+        validateField('password_confirmation')
+      }
+      break
+    case 'password_confirmation':
+      errors.password_confirmation = value === form.password ? '' : 'Las contraseñas no coinciden.'
+      break
+  }
+}
 
 const handleRegister = async () => {
-  error.value = null;
-  try {
-    await getCsrfCookie(); // Get CSRF token before registration
-    await api.post('/register', {
-      name: name.value,
-      email: email.value,
-      password: password.value,
-      password_confirmation: password_confirmation.value,
-    });
-    router.push({ name: 'login' }); // Redirect to login after successful registration
-  } catch (err) {
-    error.value = err.response?.data?.message || 'Registration failed. Please try again.';
-    if (err.response?.data?.errors) {
-      // Handle validation errors from Laravel
-      const errors = err.response.data.errors;
-      error.value = Object.values(errors).flat().join(' ');
-    }
+  ;(['name', 'email', 'password', 'password_confirmation'] as RegisterField[]).forEach(validateField)
+  submitError.value = ''
+
+  if (Object.values(errors).some(Boolean)) {
+    return
   }
-};
+
+  try {
+    await getCsrfCookie()
+    await apiRegister({ ...form })
+    router.push({ name: 'login' })
+  } catch (error: any) {
+    const validationErrors = error.response?.data?.errors
+    submitError.value = validationErrors
+      ? Object.values(validationErrors).flat().join(' ')
+      : error.response?.data?.message || 'No pudimos crear la cuenta.'
+  }
+}
 </script>

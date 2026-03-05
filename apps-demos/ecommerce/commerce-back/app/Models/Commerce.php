@@ -10,7 +10,19 @@ class Commerce extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name'];
+    protected $fillable = [
+        'name',
+        'logo_path',
+        'brand_palette',
+        'manifesto_text',
+        'philosophy_text',
+        'contact_text',
+        'team_text',
+    ];
+
+    protected $casts = [
+        'brand_palette' => 'array',
+    ];
 
     public function categories(): HasMany
     {

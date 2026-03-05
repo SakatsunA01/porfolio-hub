@@ -39,6 +39,12 @@ class UserManagementController extends Controller
         $role = Role::query()->findOrFail((int) $data['role_id']);
         $tenantId = (int) ($request->user()?->tenant_id ?? 0);
 
+        if ($role->name === 'client') {
+            return response()->json([
+                'message' => 'No se pueden crear usuarios cliente desde el panel del negocio.',
+            ], 422);
+        }
+
         $user = User::query()->create([
             'name' => $data['name'],
             'email' => $data['email'],
@@ -75,6 +81,11 @@ class UserManagementController extends Controller
 
         if (isset($data['role_id'])) {
             $role = Role::query()->findOrFail((int) $data['role_id']);
+            if ($role->name === 'client') {
+                return response()->json([
+                    'message' => 'No se puede asignar rol cliente desde el panel del negocio.',
+                ], 422);
+            }
             $data['role'] = $role->name;
         }
 

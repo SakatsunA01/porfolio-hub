@@ -1,65 +1,138 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8">
-      <div>
-        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sign in to your account
-        </h2>
+  <section class="flex min-h-screen items-center justify-center bg-bg-secondary px-6 py-section-sm">
+    <div class="w-full max-w-lg rounded-[24px] border border-bg-secondary bg-white p-8 md:p-10">
+      <div class="mb-10 text-center">
+        <p class="text-sm tracking-wide text-text-secondary">Acceso</p>
+        <h1 class="mt-3 font-serif text-4xl tracking-wide text-text-primary">
+          Ingresar
+        </h1>
       </div>
-      <form class="mt-8 space-y-6" @submit.prevent="handleLogin">
-        <input type="hidden" name="remember" value="true">
-        <div class="rounded-md shadow-sm -space-y-px">
-          <div>
-            <label for="email-address" class="sr-only">Email address</label>
-            <input id="email-address" name="email" type="email" autocomplete="email" required
-                   class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                   placeholder="Email address" v-model="email">
-          </div>
-          <div>
-            <label for="password" class="sr-only">Password</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required
-                   class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                   placeholder="Password" v-model="password">
-          </div>
+
+      <form class="space-y-6" @submit.prevent="handleLogin">
+        <div>
+          <label class="mb-2 block text-sm tracking-wide text-text-secondary">Email</label>
+          <input
+            v-model="form.email"
+            type="email"
+            class="w-full rounded-xl border bg-bg-primary px-5 py-4 text-base text-text-primary outline-none transition duration-200 ease-out"
+            :class="fieldClass(errors.email)"
+            @input="validateField('email')"
+          />
+          <p v-if="errors.email" class="mt-2 text-sm text-state-error">{{ errors.email }}</p>
         </div>
 
         <div>
-          <button type="submit"
-                  class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-            Sign in
+          <label class="mb-2 block text-sm tracking-wide text-text-secondary">Password</label>
+          <input
+            v-model="form.password"
+            type="password"
+            class="w-full rounded-xl border bg-bg-primary px-5 py-4 text-base text-text-primary outline-none transition duration-200 ease-out"
+            :class="fieldClass(errors.password)"
+            @input="validateField('password')"
+          />
+          <p v-if="errors.password" class="mt-2 text-sm text-state-error">{{ errors.password }}</p>
+        </div>
+
+        <p v-if="submitError" class="text-sm text-state-error">{{ submitError }}</p>
+
+        <button
+          type="submit"
+          class="inline-flex w-full items-center justify-center rounded-xl bg-text-primary px-6 py-4 text-sm uppercase tracking-widest text-bg-primary transition duration-200 ease-out hover:opacity-90"
+        >
+          Ingresar
+        </button>
+      </form>
+
+      <div class="mt-6 rounded-[20px] border border-bg-secondary bg-bg-primary/70 p-5">
+        <p class="text-xs uppercase tracking-[0.2em] text-text-secondary">Login demo</p>
+        <p class="mt-2 text-sm text-text-secondary">Acceso rapido para testear la tienda y el panel admin.</p>
+        <div class="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+          <div class="text-sm text-text-secondary">
+            <p><span class="text-text-primary">Email:</span> admin@admin.com</p>
+            <p><span class="text-text-primary">Password:</span> password</p>
+          </div>
+          <button
+            type="button"
+            class="inline-flex w-full items-center justify-center rounded-xl border border-text-primary px-5 py-3 text-sm uppercase tracking-widest text-text-primary transition duration-200 ease-out hover:opacity-90 md:w-auto"
+            @click="loginDemo"
+          >
+            Entrar demo
           </button>
         </div>
-        <p v-if="error" class="mt-2 text-center text-sm text-red-600">{{ error }}</p>
-      </form>
+      </div>
+
+      <p class="mt-8 text-center text-sm text-text-secondary">
+        No tenes cuenta?
+        <router-link to="/register" class="text-text-primary transition duration-200 ease-out hover:opacity-80">
+          Crear cuenta
+        </router-link>
+      </p>
     </div>
-  </div>
+  </section>
 </template>
 
-<script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '../stores/auth';
-import { getCsrfCookie } from '../services/api';
+<script setup lang="ts">
+import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { getCsrfCookie } from '../services/api'
 
-const email = ref('');
-const password = ref('');
-const error = ref(null);
-const authStore = useAuthStore();
-const router = useRouter();
+type LoginField = 'email' | 'password'
+
+const authStore = useAuthStore()
+const router = useRouter()
+
+const form = reactive({
+  email: '',
+  password: '',
+})
+
+const errors = reactive<Record<LoginField, string>>({
+  email: '',
+  password: '',
+})
+
+const submitError = ref('')
+
+const fieldClass = (error: string) =>
+  error ? 'border-state-error' : 'border-bg-secondary focus:border-text-secondary'
+
+const validateField = (field: LoginField) => {
+  const value = form[field].trim()
+
+  if (field === 'email') {
+    errors.email = /\S+@\S+\.\S+/.test(value) ? '' : 'Ingresa un email valido.'
+    return
+  }
+
+  errors.password = value.length >= 6 ? '' : 'Ingresa una contrasena valida.'
+}
 
 const handleLogin = async () => {
-  error.value = null;
-  try {
-    await getCsrfCookie();
-    await authStore.login({ email: email.value, password: password.value });
-    // Redirect based on user role or to a default authenticated page
-    if (authStore.isAdmin) {
-      router.push({ name: 'admin-dashboard' });
-    } else {
-      router.push({ name: 'home' }); // Or a user dashboard
-    }
-  } catch (err) {
-    error.value = err.response?.data?.message || 'Login failed. Please check your credentials.';
+  validateField('email')
+  validateField('password')
+  submitError.value = ''
+
+  if (errors.email || errors.password) {
+    return
   }
-};
+
+  try {
+    await getCsrfCookie()
+    const response = await authStore.login({
+      email: form.email,
+      password: form.password,
+    })
+
+    router.push(response.redirect || '/account')
+  } catch (error: any) {
+    submitError.value = error.response?.data?.message || 'No pudimos iniciar sesion.'
+  }
+}
+
+const loginDemo = async () => {
+  form.email = 'admin@admin.com'
+  form.password = 'password'
+  await handleLogin()
+}
 </script>

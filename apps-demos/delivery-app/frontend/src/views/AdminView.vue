@@ -28,6 +28,7 @@ import {
   LifeBuoy,
   LogOut,
   Menu,
+  Palette,
   PackagePlus,
   Pencil,
   Play,
@@ -38,6 +39,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   ShoppingBag,
+  Store,
   Lock,
   Trash2,
   UserCog,
@@ -57,15 +59,18 @@ import ProfitabilityCalculator from '../components/admin/ProfitabilityCalculator
 import { useDeliveryStore, type ComboItem, type DailyMenu, type DailyMenuItem, type IngredientItem, type Order } from '../stores/delivery'
 import { useOrdersRealtime } from '../composables/useOrdersRealtime'
 import { resolveAssetUrl } from '../utils/media'
+import { BRAND_PALETTES, getBrandPalette } from '../utils/brandPalettes'
 
 const store = useDeliveryStore()
 const route = useRoute()
 const router = useRouter()
 useOrdersRealtime()
+const defaultBrandPalette = BRAND_PALETTES[0] ?? getBrandPalette()
 
 type AdminTab =
   | 'home'
   | 'orders'
+  | 'business'
   | 'products'
   | 'inventory'
   | 'team'
@@ -134,6 +139,8 @@ type AdminExpenseItem = {
   kind: 'fixed' | 'variable'
   createdAt: number
 }
+type BusinessHourRow = { day: string; label: string; enabled: boolean; open: string; close: string }
+type OnboardingHourRow = { enabled: boolean; from: string; to: string }
 type BillingInvoice = { id: string; periodLabel: string; amount: number; status: 'paid' | 'pending'; issuedAt: number }
 type AuditFilterChip = 'all' | 'cancelations' | 'price_changes' | 'security' | 'created' | 'edited' | 'deleted'
 type LegalTopic = 'terms' | 'privacy' | 'sla'
@@ -158,11 +165,12 @@ type RbacMatrixState = Record<RbacRoleKey, Record<RbacModuleKey, Record<RbacActi
 const routeToTab: Record<string, AdminTab> = {
   '/admin/home': 'home',
   '/admin/orders': 'orders',
+  '/admin/business': 'business',
   '/admin/products': 'products',
   '/admin/inventory': 'inventory',
   '/admin/catalog': 'products',
   '/admin/team': 'team',
-  '/admin/roles': 'team',
+  '/admin/roles': 'roles',
   '/admin/combos': 'combos',
   '/admin/categories': 'categories',
   '/admin/daily-menus': 'dailymenus',
@@ -182,10 +190,11 @@ const routeToTab: Record<string, AdminTab> = {
 const tabToRoute: Record<AdminTab, string> = {
   home: '/admin/home',
   orders: '/admin/orders',
+  business: '/admin/business',
   products: '/admin/products',
   inventory: '/admin/inventory',
   team: '/admin/team',
-  roles: '/admin/team',
+  roles: '/admin/roles',
   combos: '/admin/combos',
   categories: '/admin/categories',
   dailymenus: '/admin/daily-menus',
@@ -250,6 +259,20 @@ const couponForm = reactive({
   usesPerClient: 1,
   expiresAt: '',
 })
+const shippingSettingsForm = reactive({
+  shippingFeeArs: 0,
+  freeShippingThresholdArs: 0,
+})
+const businessThemeOptions = BRAND_PALETTES
+const businessSettingsForm = reactive({
+  logoUrl: '',
+  brandThemeKey: defaultBrandPalette.key,
+  brandPrimaryColor: defaultBrandPalette.primary,
+  businessPhone: '',
+  businessAddress: '',
+  businessHours: [] as BusinessHourRow[],
+})
+const businessSettingsSaving = ref(false)
 const productRecipeMap = ref<Record<string, RecipeLine[]>>({})
 const selectedRecipeProductId = ref(0)
 const recipeIngredientDraft = reactive({
@@ -275,6 +298,15 @@ const businessDisplayName = computed(() => {
   return 'Dunamis Store'
 })
 const businessPublicUrl = computed(() => qrBaseUrl.value)
+const businessLogoPreview = computed(() => resolveAssetUrl(businessSettingsForm.logoUrl) || '')
+const businessSelectedPalette = computed(() => getBrandPalette(businessSettingsForm.brandThemeKey, businessSettingsForm.brandPrimaryColor))
+const onboardingSelectedPalette = computed(() => getBrandPalette(onboarding.brandThemeKey, onboarding.brandColor))
+const businessHoursSummary = computed(() =>
+  businessSettingsForm.businessHours
+    .filter((day) => day.enabled)
+    .map((day) => `${day.label}: ${day.open} a ${day.close}`)
+    .join(' · '),
+)
 const selectedTableId = ref<number | null>(null)
 const dragTableId = ref<number | null>(null)
 const qrPrintModalOpen = ref(false)
@@ -290,6 +322,7 @@ const upgradeModalOpen = ref(false)
 const blockedTabAttempt = ref<AdminTab | null>(null)
 const upgradeRequiredPlan = ref<'takeaway' | 'full' | 'bi'>('full')
 const upgradeContextLabel = ref('')
+const onboardingCompleted = ref(false)
 const billingCard = reactive({
   brand: 'Visa',
   last4: '1234',
@@ -303,25 +336,18 @@ const billingInvoices = ref<BillingInvoice[]>([
   { id: 'inv-2025-12', periodLabel: 'Diciembre 2025', amount: 160000, status: 'paid', issuedAt: new Date('2025-12-01T10:30:00').getTime() },
 ])
 const onboardingOpen = ref(false)
-const onboardingStep = ref<1 | 2 | 3 | 4 | 5>(1)
-const onboardingAiLoading = ref(false)
-const onboardingColorOptions = [
-  { key: 'orange', label: 'Naranja Burguer', value: '#F97316' },
-  { key: 'green', label: 'Verde Saludable', value: '#10B981' },
-  { key: 'red', label: 'Rojo Pizza', value: '#EF4444' },
-  { key: 'dark', label: 'Negro Elegante', value: '#111827' },
-]
-const onboardingCategoryQuick = ['Hamburguesas', 'Pizzas', 'Bebidas', 'Postres', 'Combos']
-const onboardingWeekdays = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
+const onboardingStep = ref<1 | 2 | 3 | 4>(1)
+const onboardingColorOptions = BRAND_PALETTES
+const onboardingWeekdays = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo']
 const onboarding = reactive({
   storeName: '',
   slug: '',
   logoDataUrl: '',
-  brandColor: '#10B981',
+  brandThemeKey: defaultBrandPalette.key,
+  brandColor: defaultBrandPalette.primary,
   phone: '',
   address: '',
-  categories: [] as string[],
-  hours: Array.from({ length: 7 }, () => ({ enabled: true, from: '09:00', to: '23:00' })),
+  hours: Array.from({ length: 7 }, (): OnboardingHourRow => ({ enabled: true, from: '09:00', to: '23:00' })),
 })
 const adminExpenses = ref<AdminExpenseItem[]>([])
 const adminExpenseForm = reactive({
@@ -338,6 +364,7 @@ const productAnalysisSalePrice = ref(0)
 const tabLabels: Record<typeof activeTab.value, string> = {
   home: 'Inicio del panel',
   orders: 'Gestion de pedidos',
+  business: 'Configuracion inicial y negocio',
   products: 'Productos',
   inventory: 'Inventario e insumos',
   categories: 'Categorias del menu',
@@ -368,6 +395,7 @@ const headerSubtitle = computed(() =>
 const adminHomeButtons: Array<{ key: AdminTab; label: string; hint: string }> = [
   { key: 'home', label: 'Inicio del panel', hint: 'Resumen general del panel.' },
   { key: 'orders', label: 'Gestion de pedidos', hint: 'Seguimiento del flujo de pedidos.' },
+  { key: 'business', label: 'Configuracion inicial', hint: 'Marca, paleta, horarios, foto y costos de envio.' },
   { key: 'products', label: 'Productos', hint: 'Alta, edicion y estado de productos.' },
   { key: 'inventory', label: 'Inventario', hint: 'Insumos, stock y acciones masivas.' },
   { key: 'categories', label: 'Categorias', hint: 'Organizacion del menu y filtros.' },
@@ -393,6 +421,12 @@ const sidebarSections: Array<{ title: string; items: Array<{ key: AdminTab; labe
     items: [
       { key: 'home', label: 'Inicio', icon: House },
       { key: 'orders', label: 'Pedidos', icon: ShoppingBag },
+    ],
+  },
+  {
+    title: 'Negocio',
+    items: [
+      { key: 'business', label: 'Configuracion inicial', icon: Store },
     ],
   },
   {
@@ -425,6 +459,7 @@ const sidebarSections: Array<{ title: string; items: Array<{ key: AdminTab; labe
       { key: 'tables', label: 'Gestion de mesas', icon: Users },
       { key: 'qr', label: 'Generador de QR', icon: ShoppingCart },
       { key: 'team', label: 'Equipo', icon: UserCheck },
+      { key: 'roles', label: 'Roles', icon: ShieldCheck },
     ],
   },
   {
@@ -597,10 +632,6 @@ const visibleSidebarSections = computed(() =>
     .filter((section) => section.items.length > 0),
 )
 
-const visibleAdminHomeButtons = computed(() =>
-  adminHomeButtons.filter((item) => !isTabBlockedByPermission(item.key)),
-)
-
 const showRbacToast = (message = 'Permiso actualizado correctamente') => {
   rbacToastMessage.value = message
   window.setTimeout(() => {
@@ -698,6 +729,14 @@ const userForm = reactive({
   email: '',
   password: 'demo1234',
   roleId: 0,
+})
+const teamUserModalOpen = ref(false)
+const editingTeamUserId = ref<number | null>(null)
+const teamUserForm = reactive({
+  name: '',
+  email: '',
+  roleId: 0,
+  isActive: true,
 })
 
 const comboForm = reactive({
@@ -874,41 +913,35 @@ const boardOrders = computed(() => {
   }
   return base
 })
-const orderCashMovements = computed<CashMovement[]>(() =>
-  store.orders
-    .flatMap((order) => {
-      if (order.paymentStatus === 'paid') {
-        return [
-          {
-            id: `order-income-${order.id}`,
-            type: 'income' as const,
-            source: 'order' as const,
-            concept: `Venta ${orderCode(order.id)} - ${order.customer}`,
-            amount: Number(order.total || 0),
-            createdAt: order.createdAt,
-            orderId: order.id,
-            customer: order.customer,
-          },
-        ]
-      }
-      if (order.paymentStatus === 'refunded') {
-        return [
-          {
-            id: `order-refund-${order.id}`,
-            type: 'expense' as const,
-            source: 'order' as const,
-            concept: `Reintegro ${orderCode(order.id)} - ${order.customer}`,
-            amount: Number(order.total || 0),
-            createdAt: order.createdAt,
-            orderId: order.id,
-            customer: order.customer,
-          },
-        ]
-      }
-      return []
-    })
-    .filter((movement) => movement.amount > 0),
-)
+const orderCashMovements = computed<CashMovement[]>(() => {
+  const movements: CashMovement[] = []
+  for (const order of store.orders) {
+    if (order.paymentStatus === 'paid') {
+      movements.push({
+        id: `order-income-${order.id}`,
+        type: 'income',
+        source: 'order',
+        concept: `Venta ${orderCode(order.id)} - ${order.customer}`,
+        amount: Number(order.total || 0),
+        createdAt: order.createdAt,
+        orderId: order.id,
+        customer: order.customer,
+      })
+    } else if (order.paymentStatus === 'refunded') {
+      movements.push({
+        id: `order-refund-${order.id}`,
+        type: 'expense',
+        source: 'order',
+        concept: `Reintegro ${orderCode(order.id)} - ${order.customer}`,
+        amount: Number(order.total || 0),
+        createdAt: order.createdAt,
+        orderId: order.id,
+        customer: order.customer,
+      })
+    }
+  }
+  return movements.filter((movement) => movement.amount > 0)
+})
 const allCashMovements = computed<CashMovement[]>(() =>
   [...orderCashMovements.value, ...cashManualMovements.value].sort((a, b) => b.createdAt - a.createdAt),
 )
@@ -1070,7 +1103,7 @@ const selectedRecipeBreakdown = computed(() => {
 })
 const selectedRecipeDominantShare = computed(() => {
   if (!selectedRecipeBreakdown.value.length || selectedRecipeCostTotal.value <= 0) return 0
-  return (selectedRecipeBreakdown.value[0].total / selectedRecipeCostTotal.value) * 100
+  return ((selectedRecipeBreakdown.value[0]?.total || 0) / selectedRecipeCostTotal.value) * 100
 })
 const selectedRecipePieStyle = computed(() => ({
   background: `conic-gradient(rgb(14 116 144) 0% ${Math.max(0, Math.min(100, selectedRecipeDominantShare.value))}%, rgb(226 232 240) ${Math.max(0, Math.min(100, selectedRecipeDominantShare.value))}% 100%)`,
@@ -1185,11 +1218,7 @@ const expensePieStyle = computed(() => {
 })
 const tablesPreviewLink = (tableId: number) => `${qrBaseUrl.value}?mesa=${tableId}`
 const generalMenuLink = computed(() => qrBaseUrl.value)
-const qrTargetLink = computed(() => {
-  if (qrDestinationMode.value === 'general') return generalMenuLink.value
-  if (!selectedTableId.value) return ''
-  return tablesPreviewLink(selectedTableId.value)
-})
+const qrTargetLink = computed(() => generalMenuLink.value)
 const tableQrPreviewUrl = computed(() => {
   if (!qrTargetLink.value) return ''
   return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(qrTargetLink.value)}`
@@ -1330,6 +1359,21 @@ const filteredIngredients = computed(() => {
 })
 const lowIngredients = computed(() => store.ingredients.filter((ingredient) => ingredient.active && Number(ingredient.stockQuantity || 0) <= 5))
 const lowIngredientsCount = computed(() => lowIngredients.value.length)
+const inventoryIngredients = computed(() => [...store.ingredients].sort((a, b) => a.name.localeCompare(b.name)))
+const ingredientStockToneClass = (ingredient: { stockQuantity?: number; active: boolean }) => {
+  if (!ingredient.active) return 'bg-slate-200 text-slate-600'
+  const stock = Number(ingredient.stockQuantity || 0)
+  if (stock <= 0) return 'bg-rose-100 text-rose-700'
+  if (stock <= 5) return 'bg-amber-100 text-amber-700'
+  return 'bg-emerald-100 text-emerald-700'
+}
+const ingredientStockToneLabel = (ingredient: { stockQuantity?: number; active: boolean }) => {
+  if (!ingredient.active) return 'Inactivo'
+  const stock = Number(ingredient.stockQuantity || 0)
+  if (stock <= 0) return 'Sin stock'
+  if (stock <= 5) return 'Stock bajo'
+  return 'Disponible'
+}
 const todaySales = computed(() => {
   const now = new Date()
   return store.orders
@@ -1415,7 +1459,7 @@ const reportedErrors24h = computed(() => {
 })
 const serverLatencyMs = computed(() => {
   const base = store.realtimeConnected ? 68 : 190
-  const trafficPenalty = Math.min(180, activeOrders.value * 6)
+  const trafficPenalty = Math.min(180, activeOrders.value.length * 6)
   const paymentPenalty = paymentIssues24h.value * 7
   return Math.round(base + trafficPenalty + paymentPenalty)
 })
@@ -1490,6 +1534,17 @@ const heartbeatPaymentsTone = computed<'ok' | 'warn' | 'critical'>(() => {
   if (paymentIssues24h.value === 0) return 'ok'
   if (paymentIssues24h.value <= 2) return 'warn'
   return 'critical'
+})
+const systemStatusTone = computed<'ok' | 'warn' | 'critical'>(() => {
+  const tones = [store.realtimeConnected ? 'ok' : 'critical', heartbeatLatencyTone.value, heartbeatPaymentsTone.value, uptimeStatus.value]
+  if (tones.includes('critical')) return 'critical'
+  if (tones.includes('warn')) return 'warn'
+  return 'ok'
+})
+const systemStatusLabel = computed(() => {
+  if (systemStatusTone.value === 'ok') return 'Sistema estable'
+  if (systemStatusTone.value === 'warn') return 'Sistema con atencion'
+  return 'Sistema degradado'
 })
 const statusDotClass = (tone: 'ok' | 'warn' | 'critical') => {
   if (tone === 'ok') return 'bg-emerald-500'
@@ -1651,8 +1706,8 @@ const invoiceIssueDate = (timestamp: number) =>
     year: 'numeric',
   })
 const onboardingProgress = computed(() => {
-  if (onboardingStep.value >= 5) return 100
-  return Math.round((onboardingStep.value / 4) * 100)
+  if (onboardingStep.value >= 4) return 100
+  return Math.round((onboardingStep.value / 3) * 100)
 })
 const onboardingMapEmbedUrl = computed(() => {
   const query = onboarding.address.trim()
@@ -1666,7 +1721,6 @@ const onboardingPreviewSlug = computed(() => {
 const onboardingCanContinue = computed(() => {
   if (onboardingStep.value === 1) return onboarding.storeName.trim().length >= 3
   if (onboardingStep.value === 2) return onboarding.address.trim().length >= 5
-  if (onboardingStep.value === 3) return onboarding.categories.length > 0
   return true
 })
 
@@ -1694,44 +1748,122 @@ const onOnboardingLogoInput = (event: Event) => {
   reader.readAsDataURL(file)
 }
 
-const toggleOnboardingCategory = (category: string) => {
-  if (onboarding.categories.includes(category)) {
-    onboarding.categories = onboarding.categories.filter((item) => item !== category)
-    return
-  }
-  onboarding.categories = [...onboarding.categories, category]
-}
-
 const copyHoursToAll = () => {
   const first = onboarding.hours[0]
+  if (!first) return
   onboarding.hours = onboarding.hours.map(() => ({ ...first }))
 }
 
-const runMenuAiImport = () => {
-  onboardingAiLoading.value = true
-  window.setTimeout(() => {
-    onboardingAiLoading.value = false
-    statusBanner.value = 'Lectura de carta simulada: se detectaron categorias base.'
-    if (!onboarding.categories.length) {
-      onboarding.categories = ['Hamburguesas', 'Bebidas']
-    }
-  }, 1200)
+const copyBusinessHoursToAll = () => {
+  const first = businessSettingsForm.businessHours[0]
+  if (!first) return
+  businessSettingsForm.businessHours = businessSettingsForm.businessHours.map((row) => ({ ...first, day: row.day, label: row.label }))
 }
 
-const nextOnboardingStep = () => {
+const applyBusinessTheme = (key: string) => {
+  const palette = getBrandPalette(key)
+  businessSettingsForm.brandThemeKey = palette.key
+  businessSettingsForm.brandPrimaryColor = palette.primary
+}
+
+const applyOnboardingTheme = (key: string) => {
+  const palette = getBrandPalette(key)
+  onboarding.brandThemeKey = palette.key
+  onboarding.brandColor = palette.primary
+}
+
+const syncOnboardingIntoBusinessSettings = () => {
+  businessSettingsForm.logoUrl = onboarding.logoDataUrl || businessSettingsForm.logoUrl
+  businessSettingsForm.brandThemeKey = onboarding.brandThemeKey
+  businessSettingsForm.brandPrimaryColor = onboarding.brandColor
+  businessSettingsForm.businessPhone = onboarding.phone
+  businessSettingsForm.businessAddress = onboarding.address
+  businessSettingsForm.businessHours = onboarding.hours.map((row, index) => ({
+    day: businessSettingsForm.businessHours[index]?.day || '',
+    label: businessSettingsForm.businessHours[index]?.label || onboardingWeekdays[index] || '',
+    enabled: row.enabled,
+    open: row.from,
+    close: row.to,
+  }))
+}
+
+const onBusinessLogoInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    businessSettingsForm.logoUrl = typeof reader.result === 'string' ? reader.result : ''
+  }
+  reader.readAsDataURL(file)
+}
+
+const removeBusinessLogo = () => {
+  businessSettingsForm.logoUrl = ''
+}
+
+const saveBusinessSettings = async () => {
+  businessSettingsSaving.value = true
+  try {
+    await store.updateTenantSettings({
+      ...store.tenantSettings,
+      shippingFeeArs: Number(shippingSettingsForm.shippingFeeArs || 0),
+      freeShippingThresholdArs: Number(shippingSettingsForm.freeShippingThresholdArs || 0),
+      logoUrl: businessSettingsForm.logoUrl || null,
+      brandThemeKey: businessSettingsForm.brandThemeKey,
+      brandPrimaryColor: businessSettingsForm.brandPrimaryColor,
+      businessPhone: businessSettingsForm.businessPhone,
+      businessAddress: businessSettingsForm.businessAddress,
+      businessHours: businessSettingsForm.businessHours.map((row) => ({ ...row })),
+    })
+    statusBanner.value = 'Configuracion del negocio actualizada.'
+  } catch {
+    statusBanner.value = 'No se pudo guardar la configuracion del negocio.'
+  } finally {
+    businessSettingsSaving.value = false
+  }
+}
+
+const nextOnboardingStep = async () => {
   if (!onboardingCanContinue.value) return
-  if (onboardingStep.value >= 5) return
-  onboardingStep.value = (onboardingStep.value + 1) as 1 | 2 | 3 | 4 | 5
+  if (onboardingStep.value === 3) {
+    await completeOnboarding()
+    return
+  }
+  if (onboardingStep.value >= 4) return
+  onboardingStep.value = (onboardingStep.value + 1) as 1 | 2 | 3 | 4
 }
 
 const prevOnboardingStep = () => {
   if (onboardingStep.value <= 1) return
-  onboardingStep.value = (onboardingStep.value - 1) as 1 | 2 | 3 | 4 | 5
+  onboardingStep.value = (onboardingStep.value - 1) as 1 | 2 | 3 | 4
 }
 
-const completeOnboarding = () => {
-  onboardingStep.value = 5
-  localStorage.setItem(ONBOARDING_STORAGE_KEY, 'completed')
+const completeOnboarding = async () => {
+  businessSettingsSaving.value = true
+  syncOnboardingIntoBusinessSettings()
+  try {
+    await store.updateTenantSettings({
+      ...store.tenantSettings,
+      shippingFeeArs: Number(shippingSettingsForm.shippingFeeArs || 0),
+      freeShippingThresholdArs: Number(shippingSettingsForm.freeShippingThresholdArs || 0),
+      logoUrl: businessSettingsForm.logoUrl || null,
+      brandThemeKey: businessSettingsForm.brandThemeKey,
+      brandPrimaryColor: businessSettingsForm.brandPrimaryColor,
+      businessPhone: businessSettingsForm.businessPhone,
+      businessAddress: businessSettingsForm.businessAddress,
+      businessHours: businessSettingsForm.businessHours.map((row) => ({ ...row })),
+    })
+    onboardingStep.value = 4
+    onboardingCompleted.value = true
+    onboardingOpen.value = false
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, 'completed')
+    statusBanner.value = 'Configuracion inicial guardada. La identidad del negocio ya impacta en cliente.'
+  } catch {
+    statusBanner.value = 'No se pudo guardar la configuracion inicial.'
+  } finally {
+    businessSettingsSaving.value = false
+  }
 }
 
 const openStorePreview = () => {
@@ -1739,8 +1871,7 @@ const openStorePreview = () => {
 }
 
 const openBusinessSettings = () => {
-  onboardingOpen.value = true
-  onboardingStep.value = 1
+  goToTab('business')
 }
 
 const copyBusinessUrl = async () => {
@@ -1753,9 +1884,10 @@ const copyBusinessUrl = async () => {
 }
 
 const finishOnboardingToPanel = () => {
+  onboardingCompleted.value = true
   onboardingOpen.value = false
-  goToTab('home')
-  statusBanner.value = 'Configuracion inicial completada. Tu tienda ya esta online.'
+  goToTab('business')
+  statusBanner.value = 'Configuracion inicial completada. Ahora podes seguir desde ajustes del negocio.'
 }
 
 const filteredProducts = computed(() => {
@@ -2125,10 +2257,7 @@ const copyQrTargetLink = async () => {
   if (!qrTargetLink.value) return
   try {
     await navigator.clipboard.writeText(qrTargetLink.value)
-    statusBanner.value =
-      qrDestinationMode.value === 'general'
-        ? 'Link de menu general copiado.'
-        : `Link de mesa ${selectedTableId.value} copiado.`
+    statusBanner.value = 'Link del menu general copiado.'
   } catch {
     statusBanner.value = 'No se pudo copiar el link.'
   }
@@ -2151,6 +2280,7 @@ const onTableDrop = (targetTableId: number) => {
   if (sourceIndex < 0 || targetIndex < 0) return
   const next = [...tables.value]
   const [moved] = next.splice(sourceIndex, 1)
+  if (!moved) return
   next.splice(targetIndex, 0, moved)
   tables.value = next
 }
@@ -2232,7 +2362,7 @@ const onQrLogoInput = (event: Event) => {
 
 const printCurrentQrCard = () => {
   if (!qrTargetLink.value || !tableQrPreviewUrl.value) {
-    statusBanner.value = 'Selecciona un destino para generar el QR.'
+    statusBanner.value = 'No se pudo generar el QR del menu.'
     return
   }
   const popup = window.open('', '_blank', 'noopener,noreferrer,width=900,height=720')
@@ -2240,13 +2370,7 @@ const printCurrentQrCard = () => {
     statusBanner.value = 'No se pudo abrir la ventana de impresion.'
     return
   }
-  const tableTitle =
-    qrDestinationMode.value === 'general'
-      ? 'Menu General'
-      : `Mesa ${String(selectedTableId.value || 0).padStart(2, '0')}`
-  const logoHtml = qrLogoDataUrl.value
-    ? `<img src="${qrLogoDataUrl.value}" alt="Logo" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px;border-radius:12px;background:#fff;padding:6px;object-fit:contain;border:1px solid #d1d5db;" />`
-    : ''
+  const tableTitle = 'Menu General'
   popup.document.write(`
     <html>
       <head>
@@ -2257,9 +2381,8 @@ const printCurrentQrCard = () => {
         <article style="max-width:420px;margin:0 auto;background:#fff;border:1px solid #111827;border-radius:18px;padding:16px;text-align:center;">
           <p style="margin:0;font-size:11px;letter-spacing:.18em;color:#475569;text-transform:uppercase;">Dunamis Store</p>
           <h2 style="margin:6px 0 10px 0;font-size:30px;line-height:1.1;color:#0f172a;">${tableTitle}</h2>
-          <div style="position:relative;display:inline-block;">
+          <div style="display:inline-block;">
             <img alt="QR ${tableTitle}" src="${tableQrPreviewUrl.value}" style="width:280px;height:280px;object-fit:contain;filter:grayscale(100%);" />
-            ${logoHtml}
           </div>
           <p style="margin:14px 0 0;font-size:12px;color:#0f172a;font-weight:600;">1. Escanea | 2. Elegi | 3. Disfruta</p>
           <p style="margin:8px 0 0;font-size:10px;color:#64748b;">${qrTargetLink.value}</p>
@@ -2365,8 +2488,9 @@ const normalizeRolePermissions = (role: { id: number; name: string }) => {
   const next: Record<string, boolean> = {}
   for (const group of permissionCatalog) {
     for (const permission of group.items) {
-      if (typeof current[permission.key] === 'boolean') {
-        next[permission.key] = current[permission.key]
+      const permissionValue = current[permission.key]
+      if (typeof permissionValue === 'boolean') {
+        next[permission.key] = permissionValue
       } else {
         next[permission.key] = role.name === 'admin'
       }
@@ -2408,7 +2532,7 @@ const openRolePermissionsForUser = (roleName: string) => {
     activeRoleEditorId.value = targetRole.id
     normalizeRolePermissions(targetRole)
   }
-  goToTab('team')
+  goToTab('roles')
 }
 
 const auditUsers = computed(() => {
@@ -2731,6 +2855,19 @@ const editProductCard = async (productId: number) => {
   }
 }
 
+const orderItemSubtotal = (item: Order['items'][number]) => {
+  const basePrice = Number(store.getProduct(item.productId)?.price || 0)
+  const extrasTotal = (item.extras || []).reduce((acc, extra) => acc + Number(extra.additionalPrice || 0), 0)
+  return (basePrice + extrasTotal) * Number(item.qty || 0)
+}
+
+const focusExpenseIngredientInput = () => {
+  document.getElementById('expense-ingredient-name')?.focus()
+}
+
+const lastRbacRoleKey = rbacRoles[rbacRoles.length - 1]?.key ?? 'cashier'
+const lastRbacActionKey = rbacActions[rbacActions.length - 1]?.key ?? 'delete'
+
 const submitProduct = async () => {
   const basePayload = {
     ...productForm,
@@ -2883,6 +3020,20 @@ const stockValueClass = (stockQuantity: number, minStockQuantity: number) => {
   return 'text-emerald-700'
 }
 
+const productStatusClass = (enabled: boolean) => (
+  enabled
+    ? 'bg-emerald-100 text-emerald-700 ring-emerald-200'
+    : 'bg-slate-200 text-slate-600 ring-slate-300'
+)
+
+const productStatusLabel = (enabled: boolean) => (enabled ? 'Activo' : 'Inactivo')
+
+const productCardStateClass = (enabled: boolean) => (
+  enabled
+    ? 'bg-slate-50 hover:bg-white'
+    : 'bg-slate-100/90 opacity-80 ring-1 ring-slate-200'
+)
+
 const duplicateProductCard = async (productId: number) => {
   await store.duplicateProduct(productId)
   statusBanner.value = 'Producto duplicado correctamente.'
@@ -2903,7 +3054,7 @@ const submitRole = async () => {
 }
 
 const assignableBusinessRoles = computed(() =>
-  store.roles.filter((role) => !['admin'].includes(String(role.name || '').toLowerCase())),
+  store.roles.filter((role) => !['admin', 'client'].includes(String(role.name || '').toLowerCase())),
 )
 
 const ensureEncargadoRole = async () => {
@@ -2919,8 +3070,12 @@ const ensureEncargadoRole = async () => {
 const submitUser = async () => {
   if (!userForm.name.trim() || !userForm.email.trim() || !userForm.roleId) return
   const selectedRole = store.roles.find((role) => role.id === userForm.roleId)
-  if (!selectedRole || String(selectedRole.name || '').toLowerCase() === 'admin') {
-    statusBanner.value = 'No se puede asignar rol Admin desde el negocio.'
+  const selectedRoleName = String(selectedRole?.name || '').toLowerCase()
+  if (!selectedRole || ['admin', 'client'].includes(selectedRoleName)) {
+    statusBanner.value =
+      selectedRoleName === 'client'
+        ? 'No se pueden crear usuarios cliente desde el panel del negocio.'
+        : 'No se puede asignar rol Admin desde el negocio.'
     return
   }
   await store.createUser({
@@ -2936,6 +3091,47 @@ const submitUser = async () => {
   userForm.password = 'demo1234'
   userForm.roleId = 0
   statusBanner.value = 'Usuario creado.'
+}
+
+const openTeamUserModal = (user: { id: number; name: string; email?: string; role: string; active: boolean }) => {
+  editingTeamUserId.value = user.id
+  teamUserForm.name = user.name
+  teamUserForm.email = user.email || ''
+  teamUserForm.isActive = user.active
+  const matchedRole = assignableBusinessRoles.value.find((role) => String(role.name || '').toLowerCase() === String(user.role || '').toLowerCase())
+  teamUserForm.roleId = matchedRole?.id || 0
+  teamUserModalOpen.value = true
+}
+
+const closeTeamUserModal = () => {
+  teamUserModalOpen.value = false
+  editingTeamUserId.value = null
+  teamUserForm.name = ''
+  teamUserForm.email = ''
+  teamUserForm.roleId = 0
+  teamUserForm.isActive = true
+}
+
+const submitTeamUserUpdate = async () => {
+  if (!editingTeamUserId.value || !teamUserForm.name.trim() || !teamUserForm.email.trim() || !teamUserForm.roleId) return
+  const selectedRole = store.roles.find((role) => role.id === teamUserForm.roleId)
+  const selectedRoleName = String(selectedRole?.name || '').toLowerCase()
+  if (!selectedRole || ['admin', 'client'].includes(selectedRoleName)) {
+    statusBanner.value =
+      selectedRoleName === 'client'
+        ? 'No se puede asignar rol cliente desde el panel del negocio.'
+        : 'No se puede asignar rol Admin desde el negocio.'
+    return
+  }
+  await store.updateUser({
+    id: editingTeamUserId.value,
+    name: teamUserForm.name.trim(),
+    email: teamUserForm.email.trim(),
+    roleId: teamUserForm.roleId,
+    isActive: teamUserForm.isActive,
+  })
+  closeTeamUserModal()
+  statusBanner.value = 'Usuario actualizado.'
 }
 
 const toggleUserState = async (userId: number, isActive: boolean) => {
@@ -3296,7 +3492,7 @@ watch(
       normalizeRolePermissions(role)
     }
     if (!activeRoleEditorId.value && store.roles.length) {
-      activeRoleEditorId.value = store.roles[0].id
+      activeRoleEditorId.value = store.roles[0]?.id || null
     }
   },
   { immediate: true },
@@ -3306,7 +3502,7 @@ watch(
   () => store.products.map((product) => product.id),
   () => {
     if (!selectedRecipeProductId.value && store.products.length) {
-      selectedRecipeProductId.value = store.products[0].id
+      selectedRecipeProductId.value = store.products[0]?.id || 0
     }
   },
   { immediate: true },
@@ -3352,7 +3548,7 @@ watch(
       selectedTableId.value = tables.value[0]?.id || null
     }
     if (!selectedTableId.value && tables.value.length) {
-      selectedTableId.value = tables.value[0].id
+      selectedTableId.value = tables.value[0]?.id || null
     }
   },
   { deep: true },
@@ -3381,6 +3577,33 @@ watch(currentPlan, () => {
 watch(subscriptionRenewAt, () => {
   localStorage.setItem(SUBSCRIPTION_RENEW_STORAGE_KEY, String(subscriptionRenewAt.value))
 })
+
+watch(
+  () => store.tenantSettings,
+  (settings) => {
+    const normalizedPalette = getBrandPalette(settings.brandThemeKey, settings.brandPrimaryColor)
+    shippingSettingsForm.shippingFeeArs = Number(settings.shippingFeeArs || 0)
+    shippingSettingsForm.freeShippingThresholdArs = Number(settings.freeShippingThresholdArs || 0)
+    businessSettingsForm.logoUrl = settings.logoUrl || ''
+    businessSettingsForm.brandThemeKey = normalizedPalette.key
+    businessSettingsForm.brandPrimaryColor = normalizedPalette.primary
+    businessSettingsForm.businessPhone = settings.businessPhone || ''
+    businessSettingsForm.businessAddress = settings.businessAddress || ''
+    businessSettingsForm.businessHours = settings.businessHours.map((row) => ({ ...row }))
+    onboarding.storeName = onboarding.storeName || businessDisplayName.value
+    onboarding.logoDataUrl = businessSettingsForm.logoUrl || onboarding.logoDataUrl
+    onboarding.brandThemeKey = normalizedPalette.key
+    onboarding.brandColor = normalizedPalette.primary
+    onboarding.phone = settings.businessPhone || onboarding.phone
+    onboarding.address = settings.businessAddress || onboarding.address
+    onboarding.hours = settings.businessHours.map((row) => ({
+      enabled: row.enabled,
+      from: row.open,
+      to: row.close,
+    }))
+  },
+  { immediate: true, deep: true },
+)
 
 watch(
   () => store.ingredients.map((ingredient) => ingredient.id),
@@ -3519,8 +3742,10 @@ onMounted(async () => {
   }
   try {
     const onboardingState = localStorage.getItem(ONBOARDING_STORAGE_KEY)
+    onboardingCompleted.value = onboardingState === 'completed'
     onboardingOpen.value = onboardingState !== 'completed'
   } catch {
+    onboardingCompleted.value = false
     onboardingOpen.value = true
   }
   await store.refreshAll()
@@ -3529,197 +3754,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section
-    v-if="onboardingOpen"
-    class="rounded-[24px] bg-[#F8F9FA] p-2"
-  >
-    <div class="mx-auto max-w-6xl rounded-[32px] bg-white p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-      <header class="mb-5 space-y-3">
-        <div class="flex items-center justify-between gap-2">
-          <div>
-            <h2 class="text-xl font-extrabold text-slate-900">Configuracion Inicial</h2>
-            <p class="text-sm text-slate-500">Activa tu tienda en 4 pasos guiados.</p>
-          </div>
-          <button type="button" class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600" @click="onboardingOpen = false">
-            Salir
-          </button>
-        </div>
-        <div class="rounded-full bg-slate-100 p-1">
-          <div class="h-1.5 rounded-full bg-emerald-500 transition-all" :style="{ width: `${onboardingProgress}%` }"></div>
-        </div>
-        <div class="grid grid-cols-4 gap-2 text-center text-[11px] font-semibold">
-          <span :class="onboardingStep === 1 ? 'text-emerald-700 onboarding-step-pulse' : 'text-slate-400'">1. Identidad</span>
-          <span :class="onboardingStep === 2 ? 'text-emerald-700 onboarding-step-pulse' : 'text-slate-400'">2. Ubicacion</span>
-          <span :class="onboardingStep === 3 ? 'text-emerald-700 onboarding-step-pulse' : 'text-slate-400'">3. Tu Menu</span>
-          <span :class="onboardingStep >= 4 ? 'text-emerald-700 onboarding-step-pulse' : 'text-slate-400'">4. Lanzamiento</span>
-        </div>
-      </header>
-
-      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section class="space-y-4">
-          <article v-if="onboardingStep === 1" class="space-y-4">
-            <h3 class="text-base font-semibold text-slate-900">Identidad visual</h3>
-            <label class="flex h-44 cursor-pointer flex-col items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
-              <img v-if="onboarding.logoDataUrl" :src="onboarding.logoDataUrl" alt="Logo" class="h-24 w-24 rounded-full object-cover" />
-              <span v-else>Arrastra o sube tu logo</span>
-              <input type="file" class="hidden" accept="image/*" @change="onOnboardingLogoInput" />
-            </label>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Nombre de la tienda
-              <input :value="onboarding.storeName" class="input mt-1" type="text" placeholder="Ej: Pizzeria Pepe" @input="onOnboardingStoreNameInput" />
-            </label>
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Color de marca</p>
-              <div class="mt-2 flex flex-wrap gap-2">
-                <button
-                  v-for="color in onboardingColorOptions"
-                  :key="color.key"
-                  type="button"
-                  class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition"
-                  :class="onboarding.brandColor === color.value ? 'border-slate-900 bg-slate-100 text-slate-900' : 'border-slate-200 bg-white text-slate-600'"
-                  @click="onboarding.brandColor = color.value"
-                >
-                  <span class="h-4 w-4 rounded-full" :style="{ backgroundColor: color.value }"></span>
-                  {{ color.label }}
-                </button>
-              </div>
-            </div>
-          </article>
-
-          <article v-else-if="onboardingStep === 2" class="space-y-4">
-            <h3 class="text-base font-semibold text-slate-900">Ubicacion y contacto</h3>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Telefono de contacto
-              <input v-model="onboarding.phone" class="input mt-1" type="text" placeholder="+54 11 1234 5678" />
-            </label>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Direccion del local
-              <div class="relative mt-1">
-                <MapPin class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input v-model="onboarding.address" class="input pl-9" type="text" placeholder="Buscar ubicacion en mapa..." />
-              </div>
-            </label>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <div class="mb-2 flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Horarios de atencion</p>
-                <button type="button" class="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600" @click="copyHoursToAll">
-                  Copiar a todos
-                </button>
-              </div>
-              <div class="space-y-2">
-                <div v-for="(day, index) in onboardingWeekdays" :key="`day-${day}`" class="grid grid-cols-[52px_1fr_1fr_auto] items-center gap-2 text-xs">
-                  <span class="font-semibold text-slate-700">{{ day }}</span>
-                  <input v-model="onboarding.hours[index].from" class="input" type="time" />
-                  <input v-model="onboarding.hours[index].to" class="input" type="time" />
-                  <input v-model="onboarding.hours[index].enabled" type="checkbox" class="h-4 w-4" />
-                </div>
-              </div>
-            </div>
-            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-              <iframe
-                v-if="onboardingMapEmbedUrl"
-                :src="onboardingMapEmbedUrl"
-                class="h-52 w-full border-0"
-                loading="lazy"
-                referrerpolicy="no-referrer-when-downgrade"
-                title="Mapa local"
-              ></iframe>
-              <div v-else class="grid h-52 place-items-center text-sm text-slate-500">Completa una direccion para ver el mapa.</div>
-            </div>
-          </article>
-
-          <article v-else-if="onboardingStep === 3" class="space-y-4">
-            <h3 class="text-base font-semibold text-slate-900">Carga de menu flash</h3>
-            <p class="text-sm text-slate-500">Selecciona categorias iniciales para arrancar rapido.</p>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="category in onboardingCategoryQuick"
-                :key="`quick-cat-${category}`"
-                type="button"
-                class="rounded-full px-3 py-2 text-xs font-semibold transition"
-                :class="onboarding.categories.includes(category) ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'"
-                @click="toggleOnboardingCategory(category)"
-              >
-                {{ category }}
-              </button>
-            </div>
-            <button
-              type="button"
-              class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600"
-              @click="runMenuAiImport"
-            >
-              {{ onboardingAiLoading ? 'Procesando carta...' : 'Subi una foto de tu carta fisica y cargamos nombres por vos (IA)' }}
-            </button>
-          </article>
-
-          <article v-else-if="onboardingStep === 4" class="space-y-4">
-            <h3 class="text-base font-semibold text-slate-900">Lanzamiento</h3>
-            <div class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              <p><span class="font-semibold text-slate-900">Local:</span> {{ onboarding.storeName || 'Sin nombre' }}</p>
-              <p class="mt-1"><span class="font-semibold text-slate-900">URL:</span> dunamis.store/{{ onboardingPreviewSlug }}</p>
-              <p class="mt-1"><span class="font-semibold text-slate-900">Categorias:</span> {{ onboarding.categories.join(', ') || 'Sin categorias' }}</p>
-            </div>
-            <button type="button" class="rounded-full bg-emerald-600 px-5 py-3 text-sm font-bold text-white" @click="completeOnboarding">
-              Publicar tienda
-            </button>
-          </article>
-
-          <article v-else class="relative overflow-hidden rounded-2xl bg-slate-900 px-6 py-8 text-center text-white">
-            <div class="confetti-layer">
-              <span v-for="n in 16" :key="`confetti-${n}`" class="confetti-dot" :style="{ left: `${(n * 6) % 92}%`, animationDelay: `${(n % 8) * 0.12}s` }"></span>
-            </div>
-            <h3 class="text-2xl font-extrabold">Felicidades! Tu tienda ya esta online</h3>
-            <div class="mt-5 grid gap-3 sm:grid-cols-2">
-              <button type="button" class="rounded-full bg-emerald-500 px-4 py-3 text-sm font-bold text-white" @click="openStorePreview">
-                Ver mi Tienda
-              </button>
-              <button type="button" class="rounded-full bg-white px-4 py-3 text-sm font-bold text-slate-900" @click="finishOnboardingToPanel">
-                Ir al Panel de Control
-              </button>
-            </div>
-          </article>
-        </section>
-
-        <aside class="hidden lg:block">
-          <article class="mx-auto w-[290px] rounded-[28px] border border-slate-200 bg-slate-50 p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-            <div class="rounded-[22px] bg-white p-3">
-              <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold text-slate-500">{{ onboarding.storeName || 'Tu tienda' }}</p>
-                <span class="h-8 w-8 rounded-full bg-slate-100"></span>
-              </div>
-              <button class="mt-3 w-full rounded-full px-3 py-2 text-xs font-bold text-white" :style="{ backgroundColor: onboarding.brandColor }">
-                Boton principal
-              </button>
-              <div class="mt-3 grid grid-cols-2 gap-2">
-                <div class="rounded-xl bg-slate-100 p-2 text-[11px] text-slate-600">Producto</div>
-                <div class="rounded-xl bg-slate-100 p-2 text-[11px] text-slate-600">Combo</div>
-              </div>
-            </div>
-            <p class="mt-2 text-center text-[11px] text-slate-500">Vista previa en tiempo real</p>
-          </article>
-        </aside>
-      </div>
-
-      <footer v-if="onboardingStep <= 4" class="mt-6 flex items-center justify-between">
-        <button type="button" class="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-600" :disabled="onboardingStep === 1" @click="prevOnboardingStep">
-          Atras
-        </button>
-        <button
-          type="button"
-          class="rounded-full bg-emerald-600 px-6 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-          :disabled="!onboardingCanContinue"
-          @click="nextOnboardingStep"
-        >
-          {{ onboardingStep === 4 ? 'Finalizar' : 'Siguiente' }}
-        </button>
-      </footer>
-    </div>
-  </section>
-
-  <section
-    v-else
-    class="rounded-[24px] bg-[#F8F9FA] p-2"
-  >
+  <section class="rounded-[24px] bg-[#F8F9FA] p-2">
     <Transition name="sidebar-fade">
       <div
         v-if="mobileSidebarOpen"
@@ -3846,6 +3881,35 @@ onMounted(async () => {
           {{ statusBanner }}
         </div>
 
+        <div class="overflow-hidden rounded-[18px] border border-slate-200/80 bg-white/90 px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600">
+            <div class="inline-flex items-center gap-2">
+              <span class="inline-flex h-2.5 w-2.5 rounded-full" :class="[statusDotClass(systemStatusTone), systemStatusTone === 'ok' ? 'heartbeat-dot-pulse' : '']"></span>
+              <span class="font-semibold text-slate-800">{{ systemStatusLabel }}</span>
+            </div>
+            <span class="hidden h-4 w-px bg-slate-200 sm:block"></span>
+            <div class="inline-flex items-center gap-1.5">
+              <Server class="h-3.5 w-3.5 text-slate-400" />
+              <span>{{ store.realtimeConnected ? 'Realtime online' : 'Realtime inestable' }}</span>
+            </div>
+            <div class="inline-flex items-center gap-1.5">
+              <Database class="h-3.5 w-3.5 text-slate-400" />
+              <span>Latencia {{ heartbeatLatencyLabel }}</span>
+            </div>
+            <div class="inline-flex items-center gap-1.5">
+              <ShieldCheck class="h-3.5 w-3.5 text-slate-400" />
+              <span>{{ heartbeatPaymentsTone === 'ok' ? 'Cobros OK' : 'Cobros con alertas' }}</span>
+            </div>
+            <div class="inline-flex items-center gap-1.5">
+              <Activity class="h-3.5 w-3.5 text-slate-400" />
+              <span>Uptime {{ uptimePercent7d.toFixed(2) }}%</span>
+            </div>
+            <button type="button" class="ml-auto inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700 transition hover:bg-slate-200 active:scale-[0.98]" @click="goToTab('health')">
+              Ver detalle
+            </button>
+          </div>
+        </div>
+
         <header class="rounded-[24px] p-1">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-2">
@@ -3941,98 +4005,10 @@ onMounted(async () => {
           </div>
         </header>
         
-        <div v-if="activeTab === 'home'" class="space-y-4">
-          <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-900">Estado del sistema</h3>
-                <p class="mt-1 text-xs text-slate-500">Monitor de latido para operacion y mantenimiento.</p>
-              </div>
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 active:scale-[0.98]"
-                @click="supportModalOpen = true"
-              >
-                <LifeBuoy class="h-4 w-4" />
-                Centro de ayuda
-              </button>
-            </div>
-
-            <div class="mt-4 grid gap-3 lg:grid-cols-3">
-              <div class="rounded-2xl bg-slate-50 p-3">
-                <div class="flex items-center gap-2">
-                  <span class="relative inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                    <Server class="h-4 w-4" />
-                    <span class="absolute -right-0.5 -top-0.5 inline-flex h-2.5 w-2.5 rounded-full" :class="[statusDotClass(store.realtimeConnected ? 'ok' : 'critical'), store.realtimeConnected ? 'heartbeat-dot-pulse' : '']"></span>
-                  </span>
-                  <div>
-                    <p class="text-[11px] uppercase tracking-wide text-slate-500">Conexion</p>
-                    <p class="text-sm font-semibold text-slate-900">{{ store.realtimeConnected ? 'Sistema online' : 'Canal degradado' }}</p>
-                  </div>
-                </div>
-              </div>
-              <div class="rounded-2xl bg-slate-50 p-3">
-                <div class="flex items-center gap-2">
-                  <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 text-sky-700">
-                    <Database class="h-4 w-4" />
-                  </span>
-                  <div>
-                    <p class="text-[11px] uppercase tracking-wide text-slate-500">Latencia</p>
-                    <p class="text-sm font-semibold" :class="metricToneClass(heartbeatLatencyTone)">{{ heartbeatLatencyLabel }}</p>
-                  </div>
-                </div>
-              </div>
-              <div class="rounded-2xl bg-slate-50 p-3">
-                <div class="flex items-center gap-2">
-                  <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 text-sky-700">
-                    <ShieldCheck class="h-4 w-4" />
-                  </span>
-                  <div>
-                    <p class="text-[11px] uppercase tracking-wide text-slate-500">Mercado Pago</p>
-                    <p class="text-sm font-semibold" :class="metricToneClass(heartbeatPaymentsTone)">{{ heartbeatPaymentsTone === 'ok' ? 'Conectado' : 'Con alertas' }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-4">
-              <div class="mb-2 flex items-center justify-between text-xs">
-                <span class="font-semibold text-slate-700">Estabilidad ultimos 30 dias</span>
-                <span class="text-slate-500">Uptime {{ uptimePercent7d.toFixed(2) }}%</span>
-              </div>
-              <div class="flex items-center gap-1">
-                <span
-                  v-for="segment in uptime30dSegments"
-                  :key="`uptime-segment-${segment.date}`"
-                  class="h-4 min-w-0 flex-1 rounded-[4px]"
-                  :class="segment.tone === 'ok' ? 'bg-emerald-400' : segment.tone === 'warn' ? 'bg-amber-400' : 'bg-rose-400'"
-                  :title="segment.tooltip"
-                ></span>
-              </div>
-            </div>
-          </article>
-
-          <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 class="text-base font-semibold text-slate-900">Centro de modulos</h3>
-            <p class="mt-1 text-sm text-slate-500">Navega desde aqui: Inicio, Pedidos, Catalogo, Categorias, Combos, Caja, Equipo, Roles, Clientes y Auditoria.</p>
-            <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <button
-                v-for="section in visibleAdminHomeButtons"
-                :key="section.key"
-                type="button"
-                class="w-full rounded-xl border px-3 py-3 text-left transition"
-                :class="activeTab === section.key ? 'border-emerald-300 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-sm'"
-                @click="goToTab(section.key)"
-              >
-                <p class="text-sm font-semibold text-slate-900">{{ section.label }}</p>
-                <p class="text-xs text-slate-500">{{ section.hint }}</p>
-              </button>
-            </div>
-          </article>
-        </div>
+        <div v-if="activeTab === 'home'" class="space-y-4"></div>
 
     <div v-if="activeTab === 'orders'" class="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
-      <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+      <article v-if="!onboardingCompleted" class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
         <div class="mb-4 flex flex-wrap items-center gap-2 rounded-[20px] bg-slate-50 p-3">
           <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtro de flujo:</span>
           <button type="button" class="tab-btn" :class="{ active: orderFlowFilter === 'all' }" @click="orderFlowFilter = 'all'">Todos</button>
@@ -4325,6 +4301,45 @@ onMounted(async () => {
             <p class="text-xs text-amber-700">Stock: {{ Number(ingredient.stockQuantity || 0).toFixed(2) }}</p>
             <AppButton variant="soft" class="mt-2" @click="deactivateIngredientGlobal(ingredient.id)">Desactivar globalmente</AppButton>
           </div>
+          <div v-if="!lowIngredients.length" class="rounded-xl border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500 md:col-span-2">
+            No hay insumos criticos en este momento.
+          </div>
+        </div>
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h4 class="text-sm font-semibold text-slate-900">Listado completo de insumos</h4>
+              <p class="mt-1 text-xs text-slate-500">Ahora se muestran todos los ingredientes, no solo los que estan por agotarse.</p>
+            </div>
+            <span class="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
+              {{ inventoryIngredients.length }} cargados
+            </span>
+          </div>
+          <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            <article
+              v-for="ingredient in inventoryIngredients"
+              :key="`inventory-ingredient-${ingredient.id}`"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-3"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ ingredient.name }}</p>
+                  <p class="mt-1 text-xs text-slate-500">Costo unitario: {{ moneyLabel(Number(ingredient.unitCost || 0)) }}</p>
+                </div>
+                <span class="rounded-full px-2 py-1 text-[11px] font-semibold" :class="ingredientStockToneClass(ingredient)">
+                  {{ ingredientStockToneLabel(ingredient) }}
+                </span>
+              </div>
+              <div class="mt-3 flex items-center justify-between text-xs">
+                <span class="text-slate-500">Stock</span>
+                <span class="font-semibold text-slate-900">{{ Number(ingredient.stockQuantity || 0).toFixed(2) }}</span>
+              </div>
+              <div class="mt-1 flex items-center justify-between text-xs">
+                <span class="text-slate-500">Extra sugerido</span>
+                <span class="font-semibold text-slate-700">{{ moneyLabel(Number(ingredient.additionalPrice || 0)) }}</span>
+              </div>
+            </article>
+          </div>
         </div>
       </article>
 
@@ -4381,7 +4396,8 @@ onMounted(async () => {
           <article
             v-for="product in filteredProducts"
             :key="product.id"
-            class="rounded-[20px] bg-slate-50 p-4 transition hover:bg-white hover:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]"
+            class="rounded-[20px] p-4 transition hover:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]"
+            :class="productCardStateClass(product.enabled)"
           >
             <div class="grid items-center gap-3 md:grid-cols-[72px_1fr_170px_140px]">
               <div class="h-[72px] w-[72px] overflow-hidden rounded-2xl bg-white">
@@ -4395,7 +4411,12 @@ onMounted(async () => {
                 <div v-else class="grid h-full place-items-center text-xs font-semibold text-slate-400">Sin imagen</div>
               </div>
               <div>
-                <p class="font-semibold text-slate-900">{{ product.name }}</p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="font-semibold text-slate-900">{{ product.name }}</p>
+                  <span class="rounded-full px-2 py-1 text-[11px] font-semibold ring-1" :class="productStatusClass(product.enabled)">
+                    {{ productStatusLabel(product.enabled) }}
+                  </span>
+                </div>
                 <p class="text-xs text-slate-500">${{ product.price }} | {{ product.prepMin }} min | {{ product.category || 'Sin categoria' }}</p>
                 <div class="mt-1 flex items-center gap-2">
                   <span class="rounded-full px-2 py-1 text-[11px] font-semibold" :class="productStockClass(product.stockQuantity, product.minStockQuantity)">
@@ -4869,11 +4890,382 @@ onMounted(async () => {
               class="rounded-xl border border-slate-200 px-3 py-2"
             >
               <p class="text-sm font-semibold text-slate-900">{{ item.qty }}x {{ item.name || store.getProduct(item.productId)?.name || 'Producto' }}</p>
-              <p class="text-xs text-slate-500">Subtotal: ${{ item.subtotal.toFixed(2) }}</p>
+              <p class="text-xs text-slate-500">Subtotal: ${{ orderItemSubtotal(item).toFixed(2) }}</p>
             </article>
           </div>
         </div>
       </aside>
+    </div>
+
+    <div v-if="activeTab === 'business'" class="space-y-4">
+      <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">Configuracion inicial</h3>
+            <p class="mt-1 text-xs text-slate-500">Ahora vive dentro de esta pestaña y no como pantalla aparte.</p>
+          </div>
+          <button type="button" class="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600" @click="onboardingOpen = !onboardingOpen">
+            {{ onboardingOpen ? 'Ocultar guia' : 'Abrir guia' }}
+          </button>
+        </div>
+
+        <div v-if="onboardingOpen" class="mt-4 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <header class="mb-5 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <h2 class="text-lg font-extrabold text-slate-900">Configuracion Inicial</h2>
+                <p class="text-sm text-slate-500">Activa tu tienda en 4 pasos guiados desde negocio.</p>
+              </div>
+              <button type="button" class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600" @click="onboardingOpen = false">
+                Cerrar
+              </button>
+            </div>
+            <div class="rounded-full bg-white p-1">
+              <div class="h-1.5 rounded-full bg-emerald-500 transition-all" :style="{ width: `${onboardingProgress}%` }"></div>
+            </div>
+            <div class="grid grid-cols-4 gap-2 text-center text-[11px] font-semibold">
+              <span :class="onboardingStep === 1 ? 'text-emerald-700 onboarding-step-pulse' : 'text-slate-400'">1. Identidad</span>
+              <span :class="onboardingStep === 2 ? 'text-emerald-700 onboarding-step-pulse' : 'text-slate-400'">2. Ubicacion</span>
+              <span :class="onboardingStep === 3 ? 'text-emerald-700 onboarding-step-pulse' : 'text-slate-400'">3. Lanzamiento</span>
+              <span :class="onboardingStep >= 4 ? 'text-emerald-700 onboarding-step-pulse' : 'text-slate-400'">4. Listo</span>
+            </div>
+          </header>
+
+          <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <section class="space-y-4">
+              <article v-if="onboardingStep === 1" class="space-y-4">
+                <h3 class="text-base font-semibold text-slate-900">Identidad visual</h3>
+                <label class="flex h-40 cursor-pointer flex-col items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-white text-sm text-slate-500">
+                  <img v-if="onboarding.logoDataUrl" :src="onboarding.logoDataUrl" alt="Logo" class="h-24 w-24 rounded-full object-cover" />
+                  <span v-else>Arrastra o sube tu logo</span>
+                  <input type="file" class="hidden" accept="image/*" @change="onOnboardingLogoInput" />
+                </label>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Nombre de la tienda
+                  <input :value="onboarding.storeName" class="input mt-1" type="text" placeholder="Ej: Pizzeria Pepe" @input="onOnboardingStoreNameInput" />
+                </label>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Paleta sugerida</p>
+                  <div class="mt-2 grid gap-3 md:grid-cols-2">
+                    <button
+                      v-for="color in onboardingColorOptions"
+                      :key="color.key"
+                      type="button"
+                      class="rounded-[18px] border bg-white p-3 text-left transition"
+                      :class="onboarding.brandThemeKey === color.key ? 'border-slate-900 shadow-sm' : 'border-slate-200'"
+                      @click="applyOnboardingTheme(color.key)"
+                    >
+                      <div class="flex items-center justify-between gap-3">
+                        <div>
+                          <p class="text-sm font-semibold text-slate-900">{{ color.label }}</p>
+                          <p class="mt-1 text-xs text-slate-500">{{ color.description }}</p>
+                        </div>
+                        <div class="flex gap-1">
+                          <span v-for="swatch in color.colors" :key="`${color.key}-${swatch}`" class="h-5 w-5 rounded-full ring-1 ring-black/5" :style="{ backgroundColor: swatch }"></span>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </article>
+
+              <article v-else-if="onboardingStep === 2" class="space-y-4">
+                <h3 class="text-base font-semibold text-slate-900">Ubicacion y contacto</h3>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Telefono de contacto
+                  <input v-model="onboarding.phone" class="input mt-1" type="text" placeholder="+54 11 1234 5678" />
+                </label>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Direccion del local
+                  <div class="relative mt-1">
+                    <MapPin class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input v-model="onboarding.address" class="input pl-9" type="text" placeholder="Buscar ubicacion en mapa..." />
+                  </div>
+                </label>
+                <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div class="mb-2 flex items-center justify-between">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Horarios de atencion</p>
+                    <button type="button" class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600" @click="copyHoursToAll">
+                      Copiar a todos
+                    </button>
+                  </div>
+                  <div class="space-y-2">
+                    <div v-for="(day, index) in onboardingWeekdays" :key="`day-${day}`" class="grid grid-cols-[88px_1fr_1fr_auto] items-center gap-2 text-xs">
+                      <span class="font-semibold text-slate-700">{{ day }}</span>
+                      <input v-model="onboarding.hours[index]!.from" class="input" type="time" />
+                      <input v-model="onboarding.hours[index]!.to" class="input" type="time" />
+                      <input v-model="onboarding.hours[index]!.enabled" type="checkbox" class="h-4 w-4" />
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article v-else-if="onboardingStep === 3" class="space-y-4">
+                <h3 class="text-base font-semibold text-slate-900">Lanzamiento</h3>
+                <div class="rounded-2xl bg-white p-4 text-sm text-slate-600 ring-1 ring-slate-200">
+                  <p><span class="font-semibold text-slate-900">Local:</span> {{ onboarding.storeName || businessDisplayName }}</p>
+                  <p class="mt-1"><span class="font-semibold text-slate-900">URL:</span> {{ businessPublicUrl }}</p>
+                  <p class="mt-1"><span class="font-semibold text-slate-900">Direccion:</span> {{ onboarding.address || 'Sin direccion' }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="rounded-full bg-emerald-600 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="businessSettingsSaving"
+                  @click="completeOnboarding"
+                >
+                  {{ businessSettingsSaving ? 'Guardando...' : 'Guardar y activar' }}
+                </button>
+              </article>
+
+              <article v-else class="relative overflow-hidden rounded-2xl bg-slate-900 px-6 py-8 text-center text-white">
+                <h3 class="text-2xl font-extrabold">La guia inicial ya esta lista</h3>
+                <div class="mt-5 grid gap-3 sm:grid-cols-2">
+                  <button type="button" class="rounded-full bg-emerald-500 px-4 py-3 text-sm font-bold text-white" @click="openStorePreview">
+                    Ver mi Tienda
+                  </button>
+                  <button type="button" class="rounded-full bg-white px-4 py-3 text-sm font-bold text-slate-900" @click="finishOnboardingToPanel">
+                    Ir al panel
+                  </button>
+                </div>
+              </article>
+            </section>
+
+            <aside class="hidden lg:block">
+              <article class="mx-auto w-[290px] rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+                <div class="rounded-[22px] p-3" :style="{ backgroundColor: onboardingSelectedPalette.canvas }">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-slate-500">{{ onboarding.storeName || 'Tu tienda' }}</p>
+                    <span class="h-8 w-8 rounded-full bg-white/80"></span>
+                  </div>
+                  <button class="mt-3 w-full rounded-full px-3 py-2 text-xs font-bold text-white" :style="{ backgroundColor: onboardingSelectedPalette.primary }">
+                    Boton principal
+                  </button>
+                  <div class="mt-3 grid grid-cols-2 gap-2">
+                    <div class="rounded-xl bg-white/80 p-2 text-[11px] text-slate-600">Producto</div>
+                    <div class="rounded-xl bg-white/80 p-2 text-[11px] text-slate-600">Combo</div>
+                  </div>
+                </div>
+                <p class="mt-2 text-center text-[11px] text-slate-500">Vista previa rapida</p>
+              </article>
+            </aside>
+          </div>
+
+          <footer v-if="onboardingStep <= 3" class="mt-6 flex items-center justify-between">
+            <button type="button" class="rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-600" :disabled="onboardingStep === 1" @click="prevOnboardingStep">
+              Atras
+            </button>
+            <button
+              type="button"
+              class="rounded-full bg-emerald-600 px-6 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+              :disabled="!onboardingCanContinue || businessSettingsSaving"
+              @click="nextOnboardingStep"
+            >
+              {{ onboardingStep === 3 ? (businessSettingsSaving ? 'Guardando...' : 'Guardar y terminar') : 'Siguiente' }}
+            </button>
+          </footer>
+        </div>
+      </article>
+
+      <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">Ajustes del negocio</h3>
+            <p class="mt-1 text-xs text-slate-500">Define imagen del local, paleta, horarios y reglas de envio del storefront.</p>
+          </div>
+          <div class="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">
+            {{ businessDisplayName }}
+          </div>
+        </div>
+      </article>
+
+      <div class="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+        <div class="space-y-4">
+          <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+            <div class="flex items-center gap-2">
+              <Store class="h-4 w-4 text-slate-500" />
+              <h3 class="text-sm font-semibold text-slate-900">Identidad visual</h3>
+            </div>
+            <div class="mt-4 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <div class="space-y-3">
+                <div class="grid place-items-center rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-4">
+                  <img v-if="businessLogoPreview" :src="businessLogoPreview" alt="Logo actual" class="h-32 w-32 rounded-full object-cover ring-4 ring-white shadow-sm" />
+                  <div v-else class="grid h-32 w-32 place-items-center rounded-full bg-white text-2xl font-extrabold text-slate-400 ring-1 ring-slate-200">
+                    {{ businessDisplayName.slice(0, 2).toUpperCase() }}
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <label class="inline-flex cursor-pointer items-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white">
+                    Cambiar foto
+                    <input type="file" class="hidden" accept="image/*" @change="onBusinessLogoInput" />
+                  </label>
+                  <button type="button" class="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-600" @click="removeBusinessLogo">
+                    Quitar
+                  </button>
+                </div>
+              </div>
+              <div class="space-y-4">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Nombre visible</p>
+                  <p class="mt-1 text-lg font-bold text-slate-900">{{ businessDisplayName }}</p>
+                  <p class="mt-1 text-xs text-slate-500">{{ businessPublicUrl }}</p>
+                </div>
+                <div class="grid gap-3 md:grid-cols-2">
+                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Telefono del local
+                    <input v-model="businessSettingsForm.businessPhone" class="input mt-1" type="text" placeholder="+54 11 1234 5678" />
+                  </label>
+                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 md:col-span-2">
+                    Direccion del local
+                    <div class="relative mt-1">
+                      <MapPin class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input v-model="businessSettingsForm.businessAddress" class="input pl-9" type="text" placeholder="Av. Corrientes 1234, CABA" />
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+            <div class="flex items-center gap-2">
+              <Palette class="h-4 w-4 text-slate-500" />
+              <h3 class="text-sm font-semibold text-slate-900">Paleta de la app</h3>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">La paleta se aplica en la tienda cliente sobre header, botones, precios, filtros y carrito.</p>
+            <div class="mt-4 grid gap-3 md:grid-cols-2">
+              <button
+                v-for="theme in businessThemeOptions"
+                :key="theme.key"
+                type="button"
+                class="rounded-[20px] border p-4 text-left transition"
+                :class="businessSettingsForm.brandThemeKey === theme.key ? 'border-slate-900 shadow-sm' : 'border-slate-200 hover:border-slate-300'"
+                :style="{ backgroundColor: theme.canvas }"
+                @click="applyBusinessTheme(theme.key)"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{{ theme.label }}</p>
+                    <p class="mt-1 text-xs text-slate-600">{{ theme.description }}</p>
+                  </div>
+                  <div class="flex gap-1">
+                    <span v-for="swatch in theme.colors" :key="`${theme.key}-${swatch}`" class="h-5 w-5 rounded-full ring-1 ring-black/5" :style="{ backgroundColor: swatch }"></span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </article>
+
+          <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 class="text-sm font-semibold text-slate-900">Horarios de atencion</h3>
+                <p class="mt-1 text-xs text-slate-500">Queda mas claro para el admin y tambien sirve como referencia interna del local.</p>
+              </div>
+              <button type="button" class="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600" @click="copyBusinessHoursToAll">
+                Copiar primer dia a toda la semana
+              </button>
+            </div>
+            <div class="mt-4 grid gap-3">
+              <div v-for="(row, index) in businessSettingsForm.businessHours" :key="`business-hour-${row.day}`" class="grid gap-3 rounded-[20px] border border-slate-200 bg-slate-50 p-4 md:grid-cols-[140px_120px_1fr_1fr] md:items-center">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ row.label }}</p>
+                  <p class="text-[11px] text-slate-500">Dia {{ index + 1 }}</p>
+                </div>
+                <label class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                  <input v-model="row.enabled" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+                  {{ row.enabled ? 'Abierto' : 'Cerrado' }}
+                </label>
+                <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Abre
+                  <input v-model="row.open" class="input mt-1" type="time" :disabled="!row.enabled" />
+                </label>
+                <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Cierra
+                  <input v-model="row.close" class="input mt-1" type="time" :disabled="!row.enabled" />
+                </label>
+              </div>
+            </div>
+          </article>
+
+          <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+            <div class="flex items-center gap-2">
+              <Truck class="h-4 w-4 text-slate-500" />
+              <h3 class="text-sm font-semibold text-slate-900">Envios y carrito</h3>
+            </div>
+            <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="saveBusinessSettings">
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Costo de envio
+                <input v-model.number="shippingSettingsForm.shippingFeeArs" class="input mt-1" type="number" min="0" step="1" placeholder="2500" />
+              </label>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Monto para envio gratis
+                <input v-model.number="shippingSettingsForm.freeShippingThresholdArs" class="input mt-1" type="number" min="0" step="1" placeholder="30000" />
+              </label>
+              <p class="md:col-span-2 text-xs text-slate-500">
+                Si el monto queda en 0, la tienda no mostrara objetivo de envio gratis en el carrito.
+              </p>
+              <div class="md:col-span-2 flex justify-end">
+                <AppButton variant="primary" type="submit" :disabled="businessSettingsSaving">
+                  {{ businessSettingsSaving ? 'Guardando...' : 'Guardar configuracion del negocio' }}
+                </AppButton>
+              </div>
+            </form>
+          </article>
+        </div>
+
+        <aside class="space-y-4">
+          <article class="rounded-[24px] bg-slate-900 p-5 text-white shadow-[0_4px_20px_rgba(15,23,42,0.18)]">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">Vista previa</p>
+            <div class="mt-4 overflow-hidden rounded-[24px] bg-white">
+              <div class="px-4 py-4" :style="{ background: `linear-gradient(135deg, ${businessSelectedPalette.surface}, ${businessSelectedPalette.canvas})` }">
+                <div class="flex items-center gap-3">
+                  <img v-if="businessLogoPreview" :src="businessLogoPreview" alt="Logo preview" class="h-12 w-12 rounded-2xl object-cover ring-2 ring-white" />
+                  <div v-else class="grid h-12 w-12 place-items-center rounded-2xl bg-white text-sm font-extrabold text-slate-700">
+                    {{ businessDisplayName.slice(0, 2).toUpperCase() }}
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Tienda online</p>
+                    <p class="text-sm font-bold text-slate-900">{{ businessDisplayName }}</p>
+                  </div>
+                </div>
+                <div class="mt-4 flex gap-2 overflow-x-auto pb-1">
+                  <span class="rounded-full px-3 py-2 text-xs font-semibold text-white" :style="{ backgroundColor: businessSelectedPalette.primary }">Todas</span>
+                  <span class="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500">Pizzas</span>
+                  <span class="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500">Bebidas</span>
+                </div>
+              </div>
+              <div class="p-4">
+                <div class="rounded-[18px] border border-slate-200 p-4">
+                  <p class="text-sm font-semibold text-slate-900">Combo de ejemplo</p>
+                  <p class="mt-2 text-lg font-extrabold" :style="{ color: businessSelectedPalette.primary }">$18.900</p>
+                  <button type="button" class="mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white" :style="{ backgroundColor: businessSelectedPalette.primary }">
+                    Confirmar pedido
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+            <h3 class="text-sm font-semibold text-slate-900">Resumen visible</h3>
+            <div class="mt-3 space-y-3 text-sm text-slate-600">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Foto actual</p>
+                <p class="mt-1 font-semibold text-slate-900">{{ businessLogoPreview ? 'Cargada y lista para la web' : 'Sin foto cargada' }}</p>
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Horarios</p>
+                <p class="mt-1 text-slate-900">{{ businessHoursSummary || 'No hay horarios abiertos configurados.' }}</p>
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Contacto</p>
+                <p class="mt-1 text-slate-900">{{ businessSettingsForm.businessPhone || 'Sin telefono cargado' }}</p>
+                <p class="mt-1 text-slate-600">{{ businessSettingsForm.businessAddress || 'Sin direccion cargada' }}</p>
+              </div>
+            </div>
+          </article>
+        </aside>
+      </div>
     </div>
 
     <div v-if="activeTab === 'coupons'" class="space-y-4">
@@ -5008,7 +5400,7 @@ onMounted(async () => {
           </div>
           <h4 class="mt-4 text-lg font-bold text-slate-900">Todavia no hay insumos cargados</h4>
           <p class="mt-1 text-sm font-medium text-slate-500">Empeza con tu materia prima para activar alertas y calculos de rentabilidad.</p>
-          <button type="button" class="mt-5 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(16,185,129,0.24)] transition hover:brightness-110" @click="document.getElementById('expense-ingredient-name')?.focus()">
+          <button type="button" class="mt-5 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(16,185,129,0.24)] transition hover:brightness-110" @click="focusExpenseIngredientInput">
             Cargar mi primer insumo
           </button>
         </div>
@@ -5262,69 +5654,30 @@ onMounted(async () => {
 
     <div v-if="activeTab === 'qr'" class="space-y-4">
       <article class="rounded-[24px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-        <h3 class="text-sm font-semibold text-slate-900">Centro de generacion QR</h3>
-        <p class="mt-1 text-xs text-slate-500">Define destino, agrega logo y genera cartel listo para impresion.</p>
-        <div v-if="!tables.length" class="mt-3 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
-          No hay mesas registradas para generar QR.
-        </div>
-        <div class="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            class="tab-btn"
-            :class="{ active: qrDestinationMode === 'general' }"
-            @click="qrDestinationMode = 'general'"
-          >
-            Menu general
-          </button>
-          <button
-            type="button"
-            class="tab-btn"
-            :class="{ active: qrDestinationMode === 'table' }"
-            @click="qrDestinationMode = 'table'"
-          >
-            Mesa especifica
-          </button>
-        </div>
-        <div class="mt-3 flex flex-wrap items-center gap-2">
-          <select v-if="qrDestinationMode === 'table'" v-model.number="selectedTableId" class="input max-w-[240px]">
-            <option :value="0">Seleccionar mesa</option>
-            <option v-for="table in tables" :key="`qr-select-${table.id}`" :value="table.id">
-              {{ `Mesa ${String(table.id).padStart(2, '0')}` }}
-            </option>
-          </select>
-          <input class="input max-w-[280px]" type="file" accept="image/*" @change="onQrLogoInput" />
-          <AppButton variant="soft" @click="openQrPrintModal">Impresion masiva de QRs</AppButton>
-          <AppButton variant="primary" @click="printCurrentQrCard">Imprimir cartel actual</AppButton>
-        </div>
-        <div v-if="qrTargetLink" class="mt-4 grid gap-3 md:grid-cols-[320px_1fr]">
+        <h3 class="text-sm font-semibold text-slate-900">QR del menu</h3>
+        <p class="mt-1 text-xs text-slate-500">Un unico QR para mostrar el menu o dirigir al cliente a la web del negocio.</p>
+        <div v-if="generalMenuLink" class="mt-4 grid gap-3 md:grid-cols-[320px_1fr]">
           <div class="rounded-2xl bg-slate-50 p-3">
             <div class="relative mx-auto h-[260px] w-[260px] rounded-xl bg-white p-2">
-              <img :src="tableQrPreviewUrl" alt="QR destino seleccionado" class="h-full w-full rounded-md object-contain" />
-              <img
-                v-if="qrLogoDataUrl"
-                :src="qrLogoDataUrl"
-                alt="Logo local"
-                class="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white p-1 object-contain"
-              />
+              <img :src="tableQrPreviewUrl" alt="QR del menu" class="h-full w-full rounded-md object-contain" />
             </div>
           </div>
           <div class="rounded-2xl bg-slate-50 p-3">
-            <p class="text-sm font-semibold text-slate-900">
-              {{ qrDestinationMode === 'general' ? 'Menu general' : `Mesa ${String(selectedTableId).padStart(2, '0')}` }}
-            </p>
-            <p class="mt-1 text-xs text-slate-500 break-all">{{ qrTargetLink }}</p>
+            <p class="text-sm font-semibold text-slate-900">Menu general del negocio</p>
+            <p class="mt-1 text-xs text-slate-500 break-all">{{ generalMenuLink }}</p>
             <div class="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-              1. Escanea | 2. Elegi | 3. Disfruta
+              El cliente escanea y entra directo al menu o a la web del local.
             </div>
             <div class="mt-3 flex flex-wrap gap-2">
               <a
                 class="tab-btn"
                 :href="tableQrPreviewUrl"
-                :download="qrDestinationMode === 'general' ? 'menu-general-qr.png' : `mesa-${selectedTableId}-qr.png`"
+                download="menu-general-qr.png"
               >
                 Descargar QR
               </a>
               <button type="button" class="tab-btn" @click="copyQrTargetLink">Copiar enlace</button>
+              <AppButton variant="primary" @click="printCurrentQrCard">Imprimir cartel</AppButton>
             </div>
           </div>
         </div>
@@ -5664,6 +6017,14 @@ onMounted(async () => {
               <button
                 type="button"
                 class="grid h-10 w-10 place-items-center rounded-full bg-slate-200 text-slate-700 transition hover:bg-slate-300 active:scale-95"
+                title="Ver y editar usuario"
+                @click="openTeamUserModal(user)"
+              >
+                <Pencil class="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                class="grid h-10 w-10 place-items-center rounded-full bg-slate-200 text-slate-700 transition hover:bg-slate-300 active:scale-95"
                 title="Configurar permisos"
                 @click="openRolePermissionsForUser(user.role)"
               >
@@ -5703,7 +6064,7 @@ onMounted(async () => {
                     v-for="action in rbacActions"
                     :key="`head-${role.key}-${action.key}`"
                     class="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500"
-                    :class="{ 'rounded-tr-[24px]': role.key === rbacRoles[rbacRoles.length - 1].key && action.key === rbacActions[rbacActions.length - 1].key }"
+                    :class="{ 'rounded-tr-[24px]': role.key === lastRbacRoleKey && action.key === lastRbacActionKey }"
                   >
                     {{ action.label }}
                   </th>
@@ -6200,32 +6561,6 @@ onMounted(async () => {
       </div>
     </AppModal>
 
-    <AppModal :open="qrPrintModalOpen" max-width-class="max-w-2xl" @close="qrPrintModalOpen = false">
-      <div class="w-full max-w-2xl p-1">
-        <div class="flex items-center justify-between gap-2">
-          <div>
-            <h3 class="text-base font-semibold text-slate-900">Impresion masiva de QRs</h3>
-            <p class="text-xs text-slate-500">Selecciona mesas para imprimir codigos listos para salon.</p>
-          </div>
-          <AppButton variant="ghost" @click="qrPrintModalOpen = false">Cerrar</AppButton>
-        </div>
-        <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <label
-            v-for="table in tables"
-            :key="`print-table-${table.id}`"
-            class="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700"
-          >
-            <span>{{ `Mesa ${String(table.id).padStart(2, '0')}` }}</span>
-            <input v-model="selectedPrintTableIds" :value="table.id" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-sky-600" />
-          </label>
-        </div>
-        <div class="mt-4 flex flex-wrap justify-end gap-2">
-          <AppButton variant="ghost" type="button" @click="qrPrintModalOpen = false">Cancelar</AppButton>
-          <AppButton variant="primary" type="button" @click="printSelectedTableQrs">Imprimir seleccion</AppButton>
-        </div>
-      </div>
-    </AppModal>
-
     <AppModal :open="supportModalOpen" max-width-class="max-w-xl" :scrollable="true" @close="supportModalOpen = false">
       <div class="w-full max-w-xl p-1">
         <div class="flex items-center justify-between gap-2">
@@ -6256,6 +6591,45 @@ onMounted(async () => {
           <AppButton variant="ghost" @click="supportModalOpen = false">Cancelar</AppButton>
           <AppButton variant="primary" @click="submitSupportIssue">Enviar reporte</AppButton>
         </div>
+      </div>
+    </AppModal>
+
+    <AppModal :open="teamUserModalOpen" max-width-class="max-w-xl" @close="closeTeamUserModal">
+      <div class="w-full max-w-xl p-1">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <h3 class="text-base font-semibold text-slate-900">Usuario del equipo</h3>
+            <p class="text-xs text-slate-500">Revisa y edita los datos operativos del integrante.</p>
+          </div>
+          <AppButton variant="ghost" @click="closeTeamUserModal">Cerrar</AppButton>
+        </div>
+        <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitTeamUserUpdate">
+          <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Nombre
+            <input v-model="teamUserForm.name" class="input mt-1" type="text" required />
+          </label>
+          <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Email
+            <input v-model="teamUserForm.email" class="input mt-1" type="email" required />
+          </label>
+          <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Rol
+            <select v-model.number="teamUserForm.roleId" class="input mt-1" required>
+              <option :value="0">Seleccionar rol</option>
+              <option v-for="role in assignableBusinessRoles" :key="`team-edit-role-${role.id}`" :value="role.id">
+                {{ String(role.name || '').toLowerCase() === 'cashier' ? 'Encargado' : role.label }}
+              </option>
+            </select>
+          </label>
+          <label class="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700 md:self-end">
+            <input v-model="teamUserForm.isActive" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+            Usuario activo
+          </label>
+          <div class="md:col-span-2 flex justify-end gap-2">
+            <AppButton variant="ghost" type="button" @click="closeTeamUserModal">Cancelar</AppButton>
+            <AppButton variant="primary" type="submit">Guardar cambios</AppButton>
+          </div>
+        </form>
       </div>
     </AppModal>
 

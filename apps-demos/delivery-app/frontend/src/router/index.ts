@@ -3,6 +3,7 @@ import AdminView from '../views/AdminView.vue'
 import EmployeeView from '../views/EmployeeView.vue'
 import DriverView from '../views/DriverView.vue'
 import EmployeeHistoryView from '../views/EmployeeHistoryView.vue'
+import EmployeeProfileView from '../views/EmployeeProfileView.vue'
 import DriverHistoryView from '../views/DriverHistoryView.vue'
 import DriverProfileView from '../views/DriverProfileView.vue'
 import ClientView from '../views/ClientView.vue'
@@ -70,6 +71,7 @@ const routePermissionByPath: Record<string, RbacModuleKey> = {
   '/admin/combos': 'catalog',
   '/admin/cashbox': 'cashbox',
   '/admin/expenses': 'inventory',
+  '/admin/business': 'dashboard',
   '/admin/coupons': 'marketing',
   '/admin/loyalty': 'marketing',
   '/admin/tables': 'tables',
@@ -83,6 +85,7 @@ const routePermissionByPath: Record<string, RbacModuleKey> = {
   '/admin/help': 'billing',
   '/empleado/panel': 'kitchen',
   '/empleado/historial': 'kitchen',
+  '/empleado/perfil': 'kitchen',
   '/repartidor/ruta': 'orders',
   '/repartidor/historial': 'orders',
   '/repartidor/perfil': 'orders',
@@ -167,6 +170,7 @@ const router = createRouter({
     { path: '/admin/combos', name: 'admin-combos', component: AdminView, meta: { requiresAuth: true, roles: ['admin'], label: 'Admin Combos', adminTab: 'combos' } },
     { path: '/admin/cashbox', name: 'admin-cashbox', component: AdminView, meta: { requiresAuth: true, roles: ['admin'], label: 'Admin Caja', adminTab: 'cashbox' } },
     { path: '/admin/expenses', name: 'admin-expenses', component: AdminView, meta: { requiresAuth: true, roles: ['admin'], label: 'Admin Gastos e Insumos', adminTab: 'expenses' } },
+    { path: '/admin/business', name: 'admin-business', component: AdminView, meta: { requiresAuth: true, roles: ['admin'], label: 'Admin Negocio', adminTab: 'business' } },
     { path: '/admin/coupons', name: 'admin-coupons', component: AdminView, meta: { requiresAuth: true, roles: ['admin'], label: 'Admin Cupones', adminTab: 'coupons' } },
     { path: '/admin/loyalty', name: 'admin-loyalty', component: AdminView, meta: { requiresAuth: true, roles: ['admin'], label: 'Admin Fidelizacion', adminTab: 'loyalty' } },
     { path: '/admin/tables', name: 'admin-tables', component: AdminView, meta: { requiresAuth: true, roles: ['admin'], label: 'Admin Mesas', adminTab: 'tables' } },
@@ -181,6 +185,7 @@ const router = createRouter({
     { path: '/empleado', redirect: '/empleado/panel' },
     { path: '/empleado/panel', name: 'employee-panel', component: EmployeeView, meta: { requiresAuth: true, roles: ['employee'], label: 'Cocina Panel' } },
     { path: '/empleado/historial', name: 'employee-history', component: EmployeeHistoryView, meta: { requiresAuth: true, roles: ['employee'], label: 'Cocina Historial' } },
+    { path: '/empleado/perfil', name: 'employee-profile', component: EmployeeProfileView, meta: { requiresAuth: true, roles: ['employee'], label: 'Cocina Perfil' } },
     { path: '/repartidor', redirect: '/repartidor/ruta' },
     { path: '/repartidor/ruta', name: 'driver-route', component: DriverView, meta: { requiresAuth: true, roles: ['driver'], label: 'Repartidor Ruta' } },
     { path: '/repartidor/historial', name: 'driver-history', component: DriverHistoryView, meta: { requiresAuth: true, roles: ['driver'], label: 'Repartidor Historial' } },

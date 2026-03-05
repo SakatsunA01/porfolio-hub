@@ -16,6 +16,14 @@ class Tenant extends Model
         'plan_key',
         'billing_status',
         'monthly_fee_ars',
+        'shipping_fee_ars',
+        'free_shipping_threshold_ars',
+        'logo_url',
+        'brand_theme_key',
+        'brand_primary_color',
+        'business_phone',
+        'business_address',
+        'business_hours_json',
         'next_billing_at',
         'is_active',
     ];
@@ -23,6 +31,9 @@ class Tenant extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'monthly_fee_ars' => 'integer',
+        'shipping_fee_ars' => 'integer',
+        'free_shipping_threshold_ars' => 'integer',
+        'business_hours_json' => 'array',
         'next_billing_at' => 'datetime',
     ];
 

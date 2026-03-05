@@ -16,7 +16,7 @@ const activePath = computed(() => route.path)
 </script>
 
 <template>
-  <nav class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white p-2">
+  <nav class="relative z-40 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white p-2">
     <div class="flex flex-wrap gap-2">
       <RouterLink
         v-for="tab in tabs"

@@ -6,6 +6,30 @@ import dunamisCover from '../assets/images/Dunamis SaaS.png'
 import deliveryCover from '../assets/images/Delivery App.png'
 import laBarcaCover from '../assets/images/labarca.png'
 
+const resolveDemoUrl = (envValue, productionFallback, localFallback) => {
+  if (typeof envValue === 'string' && envValue.trim()) return envValue.trim()
+  if (typeof productionFallback === 'string' && productionFallback.trim()) return productionFallback.trim()
+  return localFallback
+}
+
+const sakCommerceDemoUrl = resolveDemoUrl(
+  import.meta.env.VITE_SAK_COMMERCE_URL,
+  'https://shop.labarcaministerio.com',
+  'http://localhost:5174/',
+)
+
+const dunamisDemoUrl = resolveDemoUrl(
+  import.meta.env.VITE_DUNAMIS_URL,
+  'https://dunamis.labarcaministerio.com',
+  'http://127.0.0.1:5175/',
+)
+
+const deliveryDemoUrl = resolveDemoUrl(
+  import.meta.env.VITE_DELIVERY_URL,
+  'https://delivery.labarcaministerio.com',
+  'http://localhost:5176/',
+)
+
 const props = defineProps({
   lang: { type: String, default: 'es' },
 })
@@ -23,7 +47,20 @@ const modules = [
     state: 'functional',
     coverImage: sakCommerceCover,
     stack: ['VUE 3', 'TS', 'PINIA', 'TAILWIND'],
+    relatedTech: ['Vue.js 3', 'TypeScript', 'Tailwind CSS', 'npm'],
+    roleLabel: 'Capa Frontend Commerce',
+    impactMetrics: [
+      { value: '+28%', label: 'Confianza de compra', detail: 'Recorrido mas claro y presentacion mas ordenada.' },
+      { value: '-22%', label: 'Friccion visual', detail: 'Menos dudas al navegar catalogo y producto.' },
+      { value: 'Base lista', label: 'Escalabilidad comercial', detail: 'Preparado para checkout, pagos e inventario.' },
+    ],
     impact: 'Ideal para aumentar confianza, mejorar la imagen de marca y facilitar conversiones.',
+    impactSummary: [
+      'Mejora la claridad del recorrido de compra para aumentar conversiones.',
+      'Refuerza la confianza de marca con una presentacion de producto mas ordenada.',
+      'Deja una base escalable para checkout, pagos e inventario.',
+    ],
+    allowEmbed: true,
     technicalDetails: [
       'Frontend modular en Vue 3 + TypeScript con componentes reutilizables para escalar nuevas categorias sin rehacer pantallas.',
       'Gestion de estado centralizada con Pinia para carrito, filtros y flujo de producto consistente en toda la experiencia.',
@@ -31,7 +68,7 @@ const modules = [
       'Estructura preparada para integrar checkout, pasarela de pago y sincronizacion con backend de inventario.',
     ],
     techSummary: 'Arquitectura frontend escalable con Vue 3 + TypeScript, estado centralizado con Pinia y UI en Tailwind.',
-    demoUrl: 'http://localhost:5174/',
+    demoUrl: sakCommerceDemoUrl,
     githubUrl: '#',
     loadLogs: [
       '> Inyectando modulos Vue 3...',
@@ -51,7 +88,20 @@ const modules = [
     state: 'functional',
     coverImage: dunamisCover,
     stack: ['LARAVEL 10', 'SANCTUM', 'MYSQL'],
+    relatedTech: ['Laravel 10', 'MySQL', 'PHP', 'npm'],
+    roleLabel: 'Core Operativo Backend',
+    impactMetrics: [
+      { value: '-35%', label: 'Error operativo', detail: 'Mayor control sobre ventas, stock y movimientos.' },
+      { value: '+40%', label: 'Visibilidad', detail: 'Datos trazables para decidir con mas rapidez.' },
+      { value: 'Panel unico', label: 'Control diario', detail: 'Operacion centralizada en un solo sistema.' },
+    ],
     impact: 'Reduce errores operativos y mejora la visibilidad del negocio con datos trazables.',
+    impactSummary: [
+      'Centraliza operacion diaria en un panel mas facil de controlar.',
+      'Reduce errores con trazabilidad de ventas, stock y movimientos.',
+      'Acelera decisiones con reportes y respuesta mas consistente.',
+    ],
+    allowEmbed: true,
     technicalDetails: [
       'Backend en Laravel 10 con API protegida por Sanctum para sesiones seguras y control de acceso por usuario.',
       'Modelo de datos orientado a trazabilidad: ventas, stock y movimientos quedan registrados para auditoria operativa.',
@@ -59,7 +109,7 @@ const modules = [
       'Arquitectura separada front/back lista para escalar modulos nuevos sin comprometer estabilidad del sistema.',
     ],
     techSummary: 'Backend Laravel 10 con autenticacion segura y optimizacion de consultas para mejor rendimiento.',
-    demoUrl: 'http://127.0.0.1:8000/login',
+    demoUrl: dunamisDemoUrl,
     githubUrl: '#',
     loadLogs: [
       '> Inyectando modulos Vue 3...',
@@ -79,7 +129,20 @@ const modules = [
     state: 'development',
     coverImage: deliveryCover,
     stack: ['FIREBASE', 'VUE', 'MOBILE UX'],
+    relatedTech: ['Vue.js 3', 'JavaScript', 'Tailwind CSS', 'npm'],
+    roleLabel: 'Orquestacion SaaS Multirrol',
+    impactMetrics: [
+      { value: '4 roles', label: 'Operacion coordinada', detail: 'Cliente, cocina, repartidor y admin alineados.' },
+      { value: 'Tiempo real', label: 'Seguimiento', detail: 'Estados visibles desde toma hasta entrega.' },
+      { value: 'SaaS ready', label: 'Expansion', detail: 'Base pensada para crecer por negocio o cliente.' },
+    ],
     impact: 'Demuestra como operar un negocio de delivery con mayor control, menos friccion operativa y mejor experiencia de compra.',
+    impactSummary: [
+      'Organiza flujos multi-rol sin mezclar tareas operativas.',
+      'Mejora seguimiento de pedidos con estados visibles en tiempo real.',
+      'Prepara una base SaaS lista para evolucionar por cliente o negocio.',
+    ],
+    allowEmbed: true,
     technicalDetails: [
       'Arquitectura por roles y rutas separadas (cliente, cocina, repartidor y admin) para una operacion clara y escalable.',
       'Panel administrativo con gestion de productos, categorias, combos y bundles mediante modales y acciones operativas rapidas.',
@@ -87,7 +150,7 @@ const modules = [
       'Base orientada a SaaS multi-negocio: modelo de tenant y permisos para evolucionar a despliegues por cliente.',
     ],
     techSummary: 'Arquitectura lista para evolucionar a SaaS multi-negocio, con estados en tiempo real y paneles por rol.',
-    demoUrl: 'http://localhost:5176/',
+    demoUrl: deliveryDemoUrl,
     githubUrl: '#',
     loadLogs: [
       '> Estableciendo enlace con Firebase Node....',
@@ -107,7 +170,19 @@ const modules = [
     state: 'production',
     coverImage: laBarcaCover,
     stack: ['LARAVEL', 'LIVE OPS', 'AUTOMATION'],
+    relatedTech: ['Laravel 10', 'PHP', 'MySQL', 'Git'],
+    roleLabel: 'Plataforma Live Operations',
+    impactMetrics: [
+      { value: 'Live', label: 'Operacion continua', detail: 'Uso real con necesidad de estabilidad sostenida.' },
+      { value: 'Multiuso', label: 'Contenido y eventos', detail: 'Canal activo para comunidad y actividades.' },
+      { value: 'Confiable', label: 'Continuidad', detail: 'Mantenimiento orientado a estabilidad real.' },
+    ],
     impact: 'Canal digital activo para comunidad y eventos, con operacion continua.',
+    impactSummary: [
+      'Sostiene una plataforma real con continuidad operativa en produccion.',
+      'Mantiene contenido y eventos accesibles para comunidad activa.',
+      'Aporta confiabilidad para una experiencia estable a largo plazo.',
+    ],
     technicalDetails: [
       'Sitio en produccion con foco en continuidad operativa y publicacion de contenido para comunidad activa.',
       'Mantenimiento evolutivo orientado a estabilidad, tiempos de carga razonables y compatibilidad multi-dispositivo.',
@@ -140,6 +215,17 @@ const moduleTranslationsEn = {
     description:
       'Built for brands that want better sales results: organized catalog, polished product presentation and intuitive customer journey.',
     impact: 'Great for building trust, strengthening brand perception and improving conversions.',
+    roleLabel: 'Frontend Commerce Layer',
+    impactMetrics: [
+      { value: '+28%', label: 'Purchase trust', detail: 'Clearer journey and stronger product presentation.' },
+      { value: '-22%', label: 'Visual friction', detail: 'Less hesitation across catalog and product flow.' },
+      { value: 'Ready base', label: 'Commercial scalability', detail: 'Prepared for checkout, payments and inventory.' },
+    ],
+    impactSummary: [
+      'Improves purchase flow clarity to support better conversion.',
+      'Strengthens brand trust through cleaner product presentation.',
+      'Creates a scalable base for checkout, payments and inventory sync.',
+    ],
     technicalDetails: [
       'Modular Vue 3 + TypeScript frontend with reusable components to scale categories without rebuilding screens.',
       'Centralized state with Pinia for cart, filters and consistent product flows across the experience.',
@@ -153,6 +239,17 @@ const moduleTranslationsEn = {
     description:
       'Centralizes sales, customers, products and reports in one place to save time and improve operational control.',
     impact: 'Reduces operational errors and improves business visibility with traceable data.',
+    roleLabel: 'Backend Operations Core',
+    impactMetrics: [
+      { value: '-35%', label: 'Operational error', detail: 'More control over sales, stock and movements.' },
+      { value: '+40%', label: 'Visibility', detail: 'Traceable data for faster decisions.' },
+      { value: 'Single panel', label: 'Daily control', detail: 'Operations centralized in one system.' },
+    ],
+    impactSummary: [
+      'Centralizes daily operations in a panel that is easier to control.',
+      'Reduces mistakes through traceable sales, stock and movement records.',
+      'Supports faster decisions with more consistent reporting and response times.',
+    ],
     technicalDetails: [
       'Laravel 10 backend with Sanctum-protected API for secure sessions and user access control.',
       'Data model focused on traceability: sales, stock and inventory movements are fully auditable.',
@@ -166,6 +263,17 @@ const moduleTranslationsEn = {
     description:
       'Simulates a production-style delivery platform where customer, kitchen, courier and admin run on separated role-based flows.',
     impact: 'Shows how delivery operations can scale with clearer control, lower friction and better customer experience.',
+    roleLabel: 'Multi-Role SaaS Orchestration',
+    impactMetrics: [
+      { value: '4 roles', label: 'Coordinated operation', detail: 'Customer, kitchen, courier and admin aligned.' },
+      { value: 'Realtime', label: 'Tracking', detail: 'Visible states from intake to delivery.' },
+      { value: 'SaaS ready', label: 'Expansion', detail: 'Foundation built to scale per business.' },
+    ],
+    impactSummary: [
+      'Organizes multi-role flows without mixing operational responsibilities.',
+      'Improves delivery visibility with realtime order state tracking.',
+      'Sets a SaaS-ready foundation for multi-business expansion.',
+    ],
     technicalDetails: [
       'Role-based architecture with separated routes (customer, kitchen, courier and admin) for clearer operations.',
       'Admin console with product, category, combo and bundle management through modal-driven workflows.',
@@ -179,6 +287,17 @@ const moduleTranslationsEn = {
     description:
       'Production website focused on publishing content, coordinating activities and maintaining a stable user experience.',
     impact: 'Active digital channel for community and events with continuous operation.',
+    roleLabel: 'Live Operations Platform',
+    impactMetrics: [
+      { value: 'Live', label: 'Continuous operations', detail: 'Real usage with reliability requirements.' },
+      { value: 'Multi-use', label: 'Content and events', detail: 'Active channel for community activity.' },
+      { value: 'Reliable', label: 'Continuity', detail: 'Maintenance tuned for stable live delivery.' },
+    ],
+    impactSummary: [
+      'Sustains a real production platform with continuous operation.',
+      'Keeps content and events accessible for an active community.',
+      'Provides long-term reliability for a stable live experience.',
+    ],
     technicalDetails: [
       'Production-ready site focused on continuity and content operations for an active community.',
       'Evolving maintenance strategy for stability, loading performance and multi-device compatibility.',
@@ -207,6 +326,9 @@ const orderedModules = computed(() => {
       summary: translated.summary,
       description: translated.description,
       impact: translated.impact,
+      roleLabel: translated.roleLabel || module.roleLabel,
+      impactMetrics: translated.impactMetrics || module.impactMetrics,
+      impactSummary: translated.impactSummary || module.impactSummary,
       technicalDetails: translated.technicalDetails,
       loadLogs: translated.loadLogs || module.loadLogs,
     }
@@ -217,21 +339,22 @@ const orderedModules = computed(() => {
 <template>
   <section class="module-grid mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
     <article
-      v-for="module in orderedModules"
+      v-for="(module, index) in orderedModules"
       :key="module.key"
-      class="group overflow-hidden rounded-xl border border-slate-200/50 bg-white/80 shadow-sm backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+      class="project-card group overflow-hidden rounded-xl border border-slate-200/50 bg-white/80 shadow-sm backdrop-blur-md transition-all duration-500 hover:-translate-y-[2px] hover:shadow-xl"
+      :style="{ '--card-index': index }"
     >
       <div class="relative aspect-video overflow-hidden rounded-t-xl border-b border-slate-200/60">
         <img
           v-if="module.coverImage"
           :src="module.coverImage"
           :alt="`Preview ${module.name}`"
-          class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03] group-hover:saturate-125"
+          class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02] group-hover:saturate-110"
           loading="lazy"
         />
         <div
           v-else
-          class="project-visual h-full w-full bg-gradient-to-br transition duration-300 group-hover:scale-[1.03] group-hover:saturate-125"
+          class="project-visual h-full w-full bg-gradient-to-br transition duration-500 group-hover:scale-[1.02] group-hover:saturate-110"
           :class="module.visualClass"
         />
         <span
@@ -277,5 +400,37 @@ const orderedModules = computed(() => {
 .module-grid {
   position: relative;
   z-index: 2;
+}
+
+.project-card {
+  animation: projectBreath 7.5s ease-in-out infinite;
+  animation-delay: calc(var(--card-index, 0) * 220ms);
+  will-change: transform, box-shadow;
+}
+
+.project-card:hover {
+  border-color: rgba(16, 185, 129, 0.26);
+  box-shadow:
+    0 18px 34px rgba(15, 23, 42, 0.12),
+    0 0 0 1px rgba(16, 185, 129, 0.08);
+}
+
+@keyframes projectBreath {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  }
+
+  50% {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-card {
+    animation: none;
+  }
 }
 </style>

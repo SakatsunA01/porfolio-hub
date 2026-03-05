@@ -1,22 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-axis-primary text-axis-secondary font-sans antialiased;
+:root {
+  color-scheme: light;
+  --bg-primary-rgb: 247 245 240;
+  --bg-secondary-rgb: 236 231 223;
+  --text-primary-rgb: 34 34 31;
+  --text-secondary-rgb: 90 90 85;
+  --accent-olive-rgb: 79 93 71;
+  --accent-clay-rgb: 138 111 90;
 }
 
-::selection {
-  @apply bg-axis-accent/25 text-axis-secondary;
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-bg-primary text-text-primary font-sans;
+  line-height: 1.7;
 }
 
 .axis-container {
-  @apply container mx-auto px-4 sm:px-6 lg:px-8;
+  @apply mx-auto w-full max-w-container px-6;
+}
+
+.axis-section {
+  @apply py-section;
+}
+
+::selection {
+  background-color: rgb(var(--accent-olive-rgb) / 0.2);
+  color: rgb(var(--text-primary-rgb));
 }
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease-out;
 }
 
 .fade-enter-from,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\StorefrontProductResource;
 use App\Models\Product;
 use Illuminate\Http\Request;
 
@@ -12,7 +13,14 @@ class ProductController extends Controller
      */
     public function index()
     {
-        return Product::all();
+        $products = Product::query()
+            ->with(['category', 'images', 'variants'])
+            ->latest('id')
+            ->get();
+
+        return response()->json([
+            'data' => StorefrontProductResource::collection($products),
+        ]);
     }
 
     /**
@@ -36,7 +44,11 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {
-        return $product;
+        $product->load(['category', 'images', 'variants']);
+
+        return response()->json([
+            'data' => new StorefrontProductResource($product),
+        ]);
     }
 
     /**

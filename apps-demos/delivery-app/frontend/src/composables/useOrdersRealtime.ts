@@ -38,6 +38,11 @@ const normalizeOrder = (raw: Record<string, unknown>): Order | null => {
     id,
     customer: String(raw.customer || 'Cliente'),
     address: String(raw.address || 'Direccion pendiente'),
+    paymentMethod: 'cash',
+    paymentStatus: 'pending',
+    cashReceived: null,
+    changeAmount: 0,
+    total: Number(raw.total || 0),
     items: items
       .map((item) => ({
         productId: Number((item as { productId?: number }).productId || 0),

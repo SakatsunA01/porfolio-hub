@@ -2,6 +2,161 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        font-family: 'Instrument Sans', sans-serif;
+    }
+}
+
+@layer components {
+    .navbar-shell {
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+
+    #store-navbar.is-condensed .navbar-shell {
+        padding-top: 0.6rem;
+        padding-bottom: 0.6rem;
+        background: rgba(248, 249, 250, 0.92);
+        box-shadow: 0 24px 52px rgba(23, 23, 23, 0.12);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+    }
+
+    .color-swatch {
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(23, 23, 23, 0.1);
+        background: var(--swatch-color);
+        box-shadow: 0 10px 24px rgba(23, 23, 23, 0.08);
+        position: relative;
+        transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .color-swatch::after {
+        content: '';
+        position: absolute;
+        inset: 0.3rem;
+        border-radius: 9999px;
+        border: 2px solid rgba(255, 255, 255, 0.82);
+    }
+
+    .color-swatch:hover,
+    .color-swatch.is-active {
+        transform: translateY(-2px) scale(1.04);
+        border-color: rgba(23, 23, 23, 0.24);
+        box-shadow: 0 16px 36px rgba(23, 23, 23, 0.14);
+    }
+
+    .featured-image {
+        transition: opacity 220ms ease, transform 320ms ease;
+    }
+
+    .featured-image.is-swapping {
+        opacity: 0.28;
+        transform: scale(1.02);
+    }
+
+    .product-card:hover .card-frost,
+    .product-card:focus-within .card-frost {
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+    }
+
+    .cart-qty-btn {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 9999px;
+        background: #ffffff;
+        color: #171717;
+        font-size: 1.125rem;
+        font-weight: 700;
+        line-height: 1;
+        box-shadow: 0 8px 18px rgba(23, 23, 23, 0.06);
+        transition: transform 160ms ease, background-color 160ms ease;
+    }
+
+    .cart-qty-btn:hover {
+        transform: scale(1.04);
+        background: #f3efe8;
+    }
+
+    .checkout-pill {
+        border-radius: 9999px;
+        border: 1px solid rgba(23, 23, 23, 0.1);
+        background: #f8f4ee;
+        padding: 0.9rem 1.1rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #171717;
+        transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+    }
+
+    .checkout-pill.is-active {
+        background: #171717;
+        border-color: #171717;
+        color: #ffffff;
+        box-shadow: 0 16px 34px rgba(23, 23, 23, 0.18);
+    }
+
+    .checkout-field {
+        position: relative;
+        display: grid;
+        gap: 0.45rem;
+        border-radius: 24px;
+        border: 1px solid rgba(23, 23, 23, 0.08);
+        background: #f8f9fa;
+        padding: 0.9rem 1rem;
+        transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .checkout-field > span:first-child {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #7a7066;
+    }
+
+    .checkout-input {
+        width: 100%;
+        background: transparent;
+        color: #171717;
+        outline: none;
+    }
+
+    .checkout-check {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%) scale(0.6);
+        display: grid;
+        height: 1.6rem;
+        width: 1.6rem;
+        place-items: center;
+        border-radius: 9999px;
+        background: #2f8f65;
+        color: #ffffff;
+        opacity: 0;
+        transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .checkout-field.is-valid {
+        border-color: rgba(47, 143, 101, 0.42);
+        box-shadow: 0 0 0 4px rgba(47, 143, 101, 0.08);
+    }
+
+    .checkout-field.is-valid .checkout-check {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+    }
+}
+
 [x-cloak] {
     display: none;
 }

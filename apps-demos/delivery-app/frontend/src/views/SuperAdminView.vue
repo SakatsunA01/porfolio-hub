@@ -140,8 +140,11 @@ const loadTenants = async () => {
       next_billing_at: tenant.next_billing_at ? String(tenant.next_billing_at).slice(0, 10) : null,
     }))
     if (!selectedTenantId.value && tenants.value.length) {
-      selectedTenantId.value = tenants.value[0].id
-      await loadTenantUsers(tenants.value[0].id)
+      const firstTenantId = tenants.value[0]?.id || null
+      selectedTenantId.value = firstTenantId
+      if (firstTenantId) {
+        await loadTenantUsers(firstTenantId)
+      }
     }
   } catch (error) {
     statusMessage.value = `Error al cargar negocios: ${error instanceof Error ? error.message : 'desconocido'}`

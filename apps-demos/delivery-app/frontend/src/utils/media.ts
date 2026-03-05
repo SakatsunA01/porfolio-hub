@@ -39,6 +39,7 @@ export const resolveAssetUrl = (url: string | null | undefined): string | null =
   if (!url) return null
   const trimmed = String(url).trim()
   if (!trimmed) return null
+  if (/^data:/i.test(trimmed)) return trimmed
   if (/^https?:\/\//i.test(trimmed)) return trimmed
   if (trimmed.startsWith('//')) return `${window.location.protocol}${trimmed}`
   return `${getAssetOrigin()}${normalizePath(trimmed)}`

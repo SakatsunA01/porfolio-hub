@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { Bike, CheckCircle2, ChefHat, Clock3, Flame, MessageCircle, Phone, Star } from 'lucide-vue-next'
+import { Bike, CheckCircle2, ChefHat, Clock3, Flame, MessageCircle, PackageCheck, Phone, Star, Store } from 'lucide-vue-next'
 import { useDeliveryStore } from '../stores/delivery'
 import { useClientOrders } from '../composables/useClientOrders'
 import { useOrdersRealtime } from '../composables/useOrdersRealtime'
@@ -17,15 +17,19 @@ const feedbackByOrderId = reactive<Record<number, { rating: number; tags: string
 const feedbackSavedMessage = ref('')
 
 const trackingSteps = [
+  { key: 'received', label: 'Recibido', icon: Store, activeClass: 'bg-slate-100 text-slate-700', doneClass: 'bg-slate-700 text-white' },
   { key: 'preparing', label: 'En cocina', icon: ChefHat, activeClass: 'bg-amber-100 text-amber-700', doneClass: 'bg-amber-500 text-white' },
+  { key: 'ready', label: 'Listo', icon: PackageCheck, activeClass: 'bg-violet-100 text-violet-700', doneClass: 'bg-violet-500 text-white' },
   { key: 'onroute', label: 'En camino', icon: Bike, activeClass: 'bg-sky-100 text-sky-700', doneClass: 'bg-sky-500 text-white' },
   { key: 'delivered', label: 'Entregado', icon: CheckCircle2, activeClass: 'bg-emerald-100 text-emerald-700', doneClass: 'bg-emerald-500 text-white' },
 ]
 
 const orderTrackingIndex = (status: string) => {
-  if (status === 'received' || status === 'preparing' || status === 'ready') return 0
-  if (status === 'onroute') return 1
-  if (status === 'delivered') return 2
+  if (status === 'received') return 0
+  if (status === 'preparing') return 1
+  if (status === 'ready') return 2
+  if (status === 'onroute') return 3
+  if (status === 'delivered') return 4
   return 0
 }
 
@@ -35,12 +39,49 @@ const orderEtaLabel = (eta: number) => {
   return `Llega en ${from}-${to} min`
 }
 
+const orderCreatedAtLabel = (createdAt: number) =>
+  new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(createdAt))
+
+const orderWaitMinutes = (createdAt: number) => Math.max(0, Math.round((Date.now() - createdAt) / 60000))
+
+const orderStatusDetail = (status: string) => {
+  if (status === 'received') return 'Pedido recibido. Esta en espera de toma por cocina.'
+  if (status === 'preparing') return 'Cocina ya empezo a preparar tu pedido.'
+  if (status === 'ready') return 'Tu pedido ya esta listo y esperando salida.'
+  if (status === 'onroute') return 'El repartidor ya va en camino a tu direccion.'
+  if (status === 'delivered') return 'Pedido entregado correctamente.'
+  return 'Estamos actualizando el estado de tu pedido.'
+}
+
+const orderStatusTone = (status: string) => {
+  if (status === 'received') return 'bg-slate-100 text-slate-700'
+  if (status === 'preparing') return 'bg-amber-100 text-amber-700'
+  if (status === 'ready') return 'bg-violet-100 text-violet-700'
+  if (status === 'onroute') return 'bg-sky-100 text-sky-700'
+  if (status === 'delivered') return 'bg-emerald-100 text-emerald-700'
+  return 'bg-slate-100 text-slate-700'
+}
+
+const orderItemsSummary = (order: (typeof clientOrders.value)[number]) => {
+  const visibleItems = order.items.slice(0, 3)
+  const summary = visibleItems
+    .map((item) => `${item.qty}x ${item.name || store.getProduct(item.productId)?.name || 'Producto'}`)
+    .join(' | ')
+  const remaining = order.items.length - visibleItems.length
+  return remaining > 0 ? `${summary} | +${remaining} mas` : summary
+}
+
 const orderDriverName = (driverId: number | null) => {
   if (!driverId) return 'Repartidor asignado'
   const driver = store.drivers.find((item) => item.id === driverId)
   if (!driver?.name) return 'Repartidor asignado'
   const parts = driver.name.trim().split(' ')
-  return parts.length > 1 ? `${parts[0]} ${parts[1][0]}.` : parts[0]
+  return parts.length > 1 ? `${parts[0]} ${parts[1]?.charAt(0) || ''}.` : (parts[0] || 'Repartidor')
 }
 
 const orderDriverAvatar = (driverId: number | null) => {
@@ -110,14 +151,31 @@ const saveFeedback = (orderId: number) => {
         >
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs font-semibold text-slate-700">#ORD-{{ String(order.id).padStart(4, '0') }}</p>
-            <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+            <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="orderStatusTone(order.status)">
               {{ statusLabelMap[order.status] || order.status }}
             </span>
           </div>
-          <div class="mt-3 grid grid-cols-3 gap-2">
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+            <span class="rounded-full bg-white px-2.5 py-1 font-medium text-slate-600">
+              Ingreso {{ orderCreatedAtLabel(order.createdAt) }}
+            </span>
+            <span
+              v-if="['received', 'preparing', 'ready'].includes(order.status)"
+              class="rounded-full bg-white px-2.5 py-1 font-medium text-slate-600"
+            >
+              {{ orderWaitMinutes(order.createdAt) }} min en espera
+            </span>
+          </div>
+          <p v-if="order.items.length" class="mt-2 rounded-xl bg-white px-3 py-2 text-xs text-slate-600">
+            {{ orderItemsSummary(order) }}
+          </p>
+          <p class="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-medium text-slate-600">
+            {{ orderStatusDetail(order.status) }}
+          </p>
+          <div class="mt-3 grid grid-cols-5 gap-2">
             <div v-for="(step, index) in trackingSteps" :key="`${order.id}-${step.key}`" class="text-center">
               <div
-                class="mx-auto grid h-9 w-9 place-items-center rounded-full text-xs font-semibold transition"
+                class="mx-auto grid h-9 w-9 place-items-center rounded-full text-xs font-semibold transition md:h-10 md:w-10"
                 :class="index <= orderTrackingIndex(order.status) ? step.doneClass : step.activeClass"
               >
                 <component
@@ -125,7 +183,7 @@ const saveFeedback = (orderId: number) => {
                   class="h-4 w-4"
                   :class="{
                     'driver-bob': step.key === 'onroute' && order.status === 'onroute',
-                    'kitchen-fire': step.key === 'preparing' && ['received', 'preparing', 'ready'].includes(order.status),
+                    'kitchen-fire': ['preparing', 'ready'].includes(step.key) && ['preparing', 'ready'].includes(order.status),
                   }"
                 />
               </div>
@@ -165,9 +223,26 @@ const saveFeedback = (orderId: number) => {
               </div>
             </div>
           </div>
-          <div v-if="['received', 'preparing', 'ready'].includes(order.status)" class="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+          <div
+            v-if="order.status === 'received'"
+            class="mt-2 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
+          >
+            <Clock3 class="h-3.5 w-3.5" />
+            Pedido en espera
+          </div>
+          <div
+            v-else-if="order.status === 'preparing'"
+            class="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700"
+          >
             <Flame class="h-3.5 w-3.5 kitchen-fire" />
             Preparando tu pedido
+          </div>
+          <div
+            v-else-if="order.status === 'ready'"
+            class="mt-2 inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-700"
+          >
+            <PackageCheck class="h-3.5 w-3.5" />
+            Listo para salir
           </div>
         </article>
       </div>

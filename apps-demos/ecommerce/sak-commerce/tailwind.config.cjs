@@ -4,23 +4,43 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'axis-primary': '#FFFFFF',
-        'axis-secondary': '#000000',
-        'axis-tertiary': '#888888',
-        'axis-accent': '#00C7B1',
-        'axis-neutral': '#F5F5F5',
+        bg: {
+          primary: 'rgb(var(--bg-primary-rgb) / <alpha-value>)',
+          secondary: 'rgb(var(--bg-secondary-rgb) / <alpha-value>)',
+        },
+        text: {
+          primary: 'rgb(var(--text-primary-rgb) / <alpha-value>)',
+          secondary: 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
+        },
+        accent: {
+          olive: 'rgb(var(--accent-olive-rgb) / <alpha-value>)',
+          clay: 'rgb(var(--accent-clay-rgb) / <alpha-value>)',
+        },
+        state: {
+          error: '#9C5C4C',
+        },
+        'axis-primary': 'rgb(var(--bg-primary-rgb) / <alpha-value>)',
+        'axis-secondary': 'rgb(var(--text-primary-rgb) / <alpha-value>)',
+        'axis-tertiary': 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
+        'axis-accent': 'rgb(var(--accent-olive-rgb) / <alpha-value>)',
+        'axis-clay': 'rgb(var(--accent-clay-rgb) / <alpha-value>)',
+        'axis-neutral': 'rgb(var(--bg-secondary-rgb) / <alpha-value>)',
       },
       fontFamily: {
+        serif: ['Playfair Display', 'serif'],
         sans: ['Inter', 'sans-serif'],
-        display: ['Montserrat', 'sans-serif'],
+        display: ['Playfair Display', 'serif'],
       },
-      gridTemplateRows: {
-        '[auto,auto,1fr]': 'auto auto 1fr',
+      spacing: {
+        section: '96px',
+        'section-sm': '64px',
+      },
+      maxWidth: {
+        container: '1200px',
       },
     },
   },
   plugins: [
     require('@tailwindcss/aspect-ratio'),
   ],
-};
-
+}

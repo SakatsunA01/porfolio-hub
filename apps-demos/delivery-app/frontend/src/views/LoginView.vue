@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BriefcaseBusiness, CookingPot, ShieldCheck, Truck, UserRound } from 'lucide-vue-next'
+import { BriefcaseBusiness, CookingPot, Truck, UserRound } from 'lucide-vue-next'
 import { useDeliveryStore, type UserRole } from '../stores/delivery'
 
 const store = useDeliveryStore()
@@ -9,12 +9,12 @@ const router = useRouter()
 const route = useRoute()
 
 const roleCards: Array<{ role: UserRole; label: string; subtitle: string; icon: unknown }> = [
-  { role: 'superadmin', label: 'Admin General', subtitle: 'Gestion SaaS de negocios', icon: ShieldCheck },
   { role: 'client', label: 'Cliente', subtitle: 'Compra y seguimiento del pedido', icon: UserRound },
   { role: 'employee', label: 'Cocina', subtitle: 'Preparacion y despacho interno', icon: CookingPot },
   { role: 'admin', label: 'Admin', subtitle: 'Gestion de pedidos y stock', icon: BriefcaseBusiness },
   { role: 'driver', label: 'Repartidor', subtitle: 'Ruta y confirmacion de entrega', icon: Truck },
 ]
+
 const form = reactive({
   email: '',
   password: '',
@@ -28,6 +28,8 @@ const DEMO_CREDENTIALS: Record<UserRole, { email: string; password: string }> = 
   driver: { email: 'repartidor@delivery.local', password: 'demo1234' },
   client: { email: 'cliente@delivery.local', password: 'demo1234' },
 }
+
+const storefrontUrl = computed(() => `${window.location.origin}/tienda/${form.tenantSlug || 'demo-delivery'}`)
 
 const emitAuthLog = (roleLabel: string) => {
   const message = `[AUTH] Perfil ${roleLabel} inicializado....`
@@ -46,11 +48,9 @@ const emitAuthLog = (roleLabel: string) => {
 const enterWithRole = async (role: UserRole) => {
   emitAuthLog(roleCards.find((item) => item.role === role)?.label || role)
   const fallback = DEMO_CREDENTIALS[role]
-  const email = fallback.email
-  const password = fallback.password
-  form.email = email
-  form.password = password
-  const ok = await store.login(email, password, form.tenantSlug)
+  form.email = fallback.email
+  form.password = fallback.password
+  const ok = await store.login(fallback.email, fallback.password, form.tenantSlug)
   if (!ok) return
   const redirect = String(route.query.redirect || '').trim()
   if (redirect) {
@@ -86,7 +86,7 @@ const submitLogin = async () => {
       </header>
 
       <h2 class="mt-6 text-3xl font-semibold text-slate-900">Selecciona un portal</h2>
-      <p class="mt-1 text-sm text-slate-500">Ingresa con usuario real y luego elige el modulo operativo.</p>
+      <p class="mt-1 text-sm text-slate-500">Usa accesos demo por rol o entra manualmente con credenciales del negocio.</p>
 
       <form class="mt-4 grid gap-2 md:grid-cols-2" @submit.prevent="submitLogin">
         <input
@@ -112,6 +112,10 @@ const submitLogin = async () => {
         <button type="submit" class="sr-only">Ingresar</button>
       </form>
       <p class="mt-1 text-xs text-slate-500">Demo por defecto: <span class="font-semibold">demo-delivery</span></p>
+      <p class="mt-1 text-xs text-slate-500">
+        Vista cliente publica:
+        <a :href="storefrontUrl" class="font-semibold text-emerald-700 underline-offset-2 hover:underline">{{ storefrontUrl }}</a>
+      </p>
       <p v-if="store.authError" class="mt-2 text-sm font-semibold text-rose-600">{{ store.authError }}</p>
 
       <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">

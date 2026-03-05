@@ -11,6 +11,8 @@ interface SessionUser {
   id: number
   name: string
   email: string
+  phone?: string | null
+  avatarUrl?: string | null
   role: UserRole
   tenantId?: number | null
   tenantSlug?: string | null
@@ -97,6 +99,34 @@ export interface DailyMenu {
   items: DailyMenuItem[]
 }
 
+export interface TenantSettings {
+  shippingFeeArs: number
+  freeShippingThresholdArs: number
+  logoUrl: string | null
+  brandThemeKey: string
+  brandPrimaryColor: string
+  businessPhone: string
+  businessAddress: string
+  businessHours: Array<{
+    day: string
+    label: string
+    enabled: boolean
+    open: string
+    close: string
+  }>
+}
+
+export interface ClientProfile {
+  displayName: string
+  email: string
+  phone: string
+  lastAddress: string
+  apartment: string
+  addressReference: string
+  deliveryNotes: string
+  avatarUrl: string | null
+}
+
 export interface AuditLogItem {
   id: number
   action: string
@@ -160,6 +190,8 @@ export interface OrderUpdatePayload {
 const AUTH_KEY = 'delivery-vue-auth-v2'
 const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8010/api'
 const DEFAULT_TENANT_SLUG = import.meta.env.VITE_DEFAULT_TENANT_SLUG || 'demo-delivery'
+const DEFAULT_BRAND_THEME_KEY = 'pastel-peach'
+const DEFAULT_BRAND_PRIMARY_COLOR = '#E88C7D'
 
 const statusFromApi = (value: string): OrderStatus => {
   if (value === 'pendiente') return 'received'
@@ -185,10 +217,69 @@ const normalizeSessionUser = (raw: SessionUser & { tenant_id?: number | null; te
   id: Number(raw.id),
   name: String(raw.name || ''),
   email: String(raw.email || ''),
+  phone: raw.phone ? String(raw.phone) : null,
+  avatarUrl: (raw as SessionUser & { avatar_url?: string | null }).avatarUrl ?? (raw as SessionUser & { avatar_url?: string | null }).avatar_url ?? null,
   role: raw.role,
   tenantId: raw.tenantId ?? raw.tenant_id ?? null,
   tenantSlug: raw.tenantSlug ?? raw.tenant_slug ?? null,
   tenantName: raw.tenantName ?? raw.tenant_name ?? null,
+})
+
+const defaultBusinessHours = () => ([
+  { day: 'mon', label: 'Lunes', enabled: true, open: '09:00', close: '23:00' },
+  { day: 'tue', label: 'Martes', enabled: true, open: '09:00', close: '23:00' },
+  { day: 'wed', label: 'Miercoles', enabled: true, open: '09:00', close: '23:00' },
+  { day: 'thu', label: 'Jueves', enabled: true, open: '09:00', close: '23:00' },
+  { day: 'fri', label: 'Viernes', enabled: true, open: '09:00', close: '23:00' },
+  { day: 'sat', label: 'Sabado', enabled: true, open: '09:00', close: '23:00' },
+  { day: 'sun', label: 'Domingo', enabled: true, open: '09:00', close: '23:00' },
+])
+
+const normalizeBusinessHours = (
+  rows?: Array<{ day?: string; label?: string; enabled?: boolean; open?: string; close?: string }> | null,
+) => {
+  const defaults = defaultBusinessHours()
+  return defaults.map((fallback, index) => {
+    const row = rows?.[index]
+    return {
+      day: String(row?.day || fallback.day),
+      label: String(row?.label || fallback.label),
+      enabled: row?.enabled ?? fallback.enabled,
+      open: String(row?.open || fallback.open),
+      close: String(row?.close || fallback.close),
+    }
+  })
+}
+
+const defaultTenantSettings = (): TenantSettings => ({
+  shippingFeeArs: 0,
+  freeShippingThresholdArs: 0,
+  logoUrl: null,
+  brandThemeKey: DEFAULT_BRAND_THEME_KEY,
+  brandPrimaryColor: DEFAULT_BRAND_PRIMARY_COLOR,
+  businessPhone: '',
+  businessAddress: '',
+  businessHours: defaultBusinessHours(),
+})
+
+const normalizeTenantSettings = (payload?: {
+  shipping_fee_ars?: number
+  free_shipping_threshold_ars?: number
+  logo_url?: string | null
+  brand_theme_key?: string | null
+  brand_primary_color?: string | null
+  business_phone?: string | null
+  business_address?: string | null
+  business_hours?: Array<{ day?: string; label?: string; enabled?: boolean; open?: string; close?: string }> | null
+}) => ({
+  shippingFeeArs: Number(payload?.shipping_fee_ars || 0),
+  freeShippingThresholdArs: Number(payload?.free_shipping_threshold_ars || 0),
+  logoUrl: payload?.logo_url ? String(payload.logo_url) : null,
+  brandThemeKey: String(payload?.brand_theme_key || DEFAULT_BRAND_THEME_KEY),
+  brandPrimaryColor: String(payload?.brand_primary_color || DEFAULT_BRAND_PRIMARY_COLOR),
+  businessPhone: String(payload?.business_phone || ''),
+  businessAddress: String(payload?.business_address || ''),
+  businessHours: normalizeBusinessHours(payload?.business_hours),
 })
 
 export const useDeliveryStore = defineStore('delivery', () => {
@@ -213,6 +304,17 @@ export const useDeliveryStore = defineStore('delivery', () => {
   const currentUser = ref<SessionUser | null>(null)
   const publicTenantSlug = ref('')
   const storefrontName = ref('Dunamis Store')
+  const tenantSettings = ref<TenantSettings>(defaultTenantSettings())
+  const clientProfile = ref<ClientProfile>({
+    displayName: '',
+    email: '',
+    phone: '',
+    lastAddress: '',
+    apartment: '',
+    addressReference: '',
+    deliveryNotes: '',
+    avatarUrl: null,
+  })
   const authError = ref('')
   const apiToken = ref('')
   const realtimeConnected = ref(false)
@@ -247,6 +349,11 @@ export const useDeliveryStore = defineStore('delivery', () => {
     const fallbackName = storefrontName.value.trim()
     return fallbackName || 'Dunamis Store'
   })
+  const shippingFeeArs = computed(() => Math.max(0, Number(tenantSettings.value.shippingFeeArs || 0)))
+  const freeShippingThresholdArs = computed(() => Math.max(0, Number(tenantSettings.value.freeShippingThresholdArs || 0)))
+  const storefrontLogoUrl = computed(() => tenantSettings.value.logoUrl)
+  const storefrontThemeKey = computed(() => tenantSettings.value.brandThemeKey || DEFAULT_BRAND_THEME_KEY)
+  const storefrontPrimaryColor = computed(() => tenantSettings.value.brandPrimaryColor || DEFAULT_BRAND_PRIMARY_COLOR)
   const allowedRouteByRole = computed(() => {
     switch (currentUser.value?.role) {
       case 'superadmin':
@@ -359,14 +466,202 @@ export const useDeliveryStore = defineStore('delivery', () => {
     const slug = (slugRaw || activeTenantSlug.value || '').trim()
     if (!slug) {
       storefrontName.value = 'Dunamis Store'
+      tenantSettings.value = defaultTenantSettings()
       return
     }
     try {
-      const payload = await apiRequest<{ name?: string }>(`/storefront/${encodeURIComponent(slug)}`)
+      const payload = await apiRequest<{
+        name?: string
+        shipping_fee_ars?: number
+        free_shipping_threshold_ars?: number
+        logo_url?: string | null
+        brand_theme_key?: string | null
+        brand_primary_color?: string | null
+        business_phone?: string | null
+        business_address?: string | null
+      }>(`/storefront/${encodeURIComponent(slug)}`)
       storefrontName.value = String(payload?.name || 'Dunamis Store')
+      tenantSettings.value = normalizeTenantSettings(payload)
     } catch {
       storefrontName.value = 'Dunamis Store'
+      tenantSettings.value = defaultTenantSettings()
     }
+  }
+
+  const fetchTenantSettings = async () => {
+    if (currentUser.value?.role !== 'admin') return tenantSettings.value
+    try {
+      const payload = await apiRequest<{
+        shipping_fee_ars?: number
+        free_shipping_threshold_ars?: number
+        logo_url?: string | null
+        brand_theme_key?: string | null
+        brand_primary_color?: string | null
+        business_phone?: string | null
+        business_address?: string | null
+        business_hours?: Array<{ day?: string; label?: string; enabled?: boolean; open?: string; close?: string }> | null
+      }>('/tenant-settings', undefined, true)
+      tenantSettings.value = normalizeTenantSettings(payload)
+    } catch {
+      // noop
+    }
+    return tenantSettings.value
+  }
+
+  const updateTenantSettings = async (payload: TenantSettings) => {
+    const response = await apiRequest<{
+      shipping_fee_ars?: number
+      free_shipping_threshold_ars?: number
+      logo_url?: string | null
+      brand_theme_key?: string | null
+      brand_primary_color?: string | null
+      business_phone?: string | null
+      business_address?: string | null
+      business_hours?: Array<{ day?: string; label?: string; enabled?: boolean; open?: string; close?: string }> | null
+    }>(
+      '/tenant-settings',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          shipping_fee_ars: Math.max(0, Math.round(payload.shippingFeeArs || 0)),
+          free_shipping_threshold_ars: Math.max(0, Math.round(payload.freeShippingThresholdArs || 0)),
+          logo_url: payload.logoUrl || null,
+          brand_theme_key: String(payload.brandThemeKey || DEFAULT_BRAND_THEME_KEY),
+          brand_primary_color: String(payload.brandPrimaryColor || DEFAULT_BRAND_PRIMARY_COLOR),
+          business_phone: String(payload.businessPhone || ''),
+          business_address: String(payload.businessAddress || ''),
+          business_hours: normalizeBusinessHours(payload.businessHours),
+        }),
+      },
+      true,
+    )
+    tenantSettings.value = normalizeTenantSettings(response)
+    await fetchStorefront(activeTenantSlug.value)
+    return tenantSettings.value
+  }
+
+  const fetchClientProfile = async () => {
+    if (currentUser.value?.role !== 'client') return clientProfile.value
+    try {
+      const payload = await apiRequest<{
+        display_name?: string
+        email?: string
+        phone?: string
+        last_address?: string
+        apartment?: string
+        address_reference?: string
+        delivery_notes?: string
+        avatar_url?: string | null
+      }>('/client/profile', undefined, true)
+      clientProfile.value = {
+        displayName: String(payload?.display_name || currentUser.value?.name || ''),
+        email: String(payload?.email || currentUser.value?.email || ''),
+        phone: String(payload?.phone || ''),
+        lastAddress: String(payload?.last_address || ''),
+        apartment: String(payload?.apartment || ''),
+        addressReference: String(payload?.address_reference || ''),
+        deliveryNotes: String(payload?.delivery_notes || ''),
+        avatarUrl: payload?.avatar_url ? String(payload.avatar_url) : null,
+      }
+    } catch {
+      clientProfile.value = {
+        displayName: String(currentUser.value?.name || ''),
+        email: String(currentUser.value?.email || ''),
+        phone: '',
+        lastAddress: '',
+        apartment: '',
+        addressReference: '',
+        deliveryNotes: '',
+        avatarUrl: null,
+      }
+    }
+    return clientProfile.value
+  }
+
+  const updateClientProfile = async (payload: {
+    displayName: string
+    phone: string
+    lastAddress: string
+    apartment: string
+    addressReference: string
+    deliveryNotes: string
+    avatarUrl: string | null
+  }) => {
+    const response = await apiRequest<{
+      display_name?: string
+      email?: string
+      phone?: string
+      last_address?: string
+      apartment?: string
+      address_reference?: string
+      delivery_notes?: string
+      avatar_url?: string | null
+    }>(
+      '/client/profile',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          display_name: payload.displayName.trim(),
+          phone: payload.phone.trim() || null,
+          last_address: payload.lastAddress.trim() || null,
+          apartment: payload.apartment.trim() || null,
+          address_reference: payload.addressReference.trim() || null,
+          delivery_notes: payload.deliveryNotes.trim() || null,
+          avatar_url: payload.avatarUrl || null,
+        }),
+      },
+      true,
+    )
+    clientProfile.value = {
+      displayName: String(response?.display_name || payload.displayName || ''),
+      email: String(response?.email || currentUser.value?.email || ''),
+      phone: String(response?.phone || ''),
+      lastAddress: String(response?.last_address || ''),
+      apartment: String(response?.apartment || ''),
+      addressReference: String(response?.address_reference || ''),
+      deliveryNotes: String(response?.delivery_notes || ''),
+      avatarUrl: response?.avatar_url ? String(response.avatar_url) : null,
+    }
+    if (currentUser.value) {
+      currentUser.value = {
+        ...currentUser.value,
+        name: clientProfile.value.displayName || currentUser.value.name,
+      }
+      persistAuth()
+    }
+    return clientProfile.value
+  }
+
+  const updateOwnProfile = async (payload: { name: string; phone: string; avatarUrl: string | null }) => {
+    const response = await apiRequest<
+      SessionUser & {
+        is_active?: boolean
+        tenant_id?: number | null
+        tenant_slug?: string | null
+        tenant_name?: string | null
+        avatar_url?: string | null
+      }
+    >(
+      '/auth/profile',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: payload.name.trim(),
+          phone: payload.phone.trim() || null,
+          avatar_url: payload.avatarUrl || null,
+        }),
+      },
+      true,
+    )
+    currentUser.value = normalizeSessionUser(response)
+    if (currentUser.value.tenantSlug) {
+      setPublicTenantSlug(currentUser.value.tenantSlug)
+    }
+    if (currentUser.value.tenantName) {
+      storefrontName.value = currentUser.value.tenantName
+    }
+    persistAuth()
+    return currentUser.value
   }
 
   const apiRequest = async <T>(path: string, init?: RequestInit, auth = false): Promise<T> => {
@@ -607,6 +902,9 @@ export const useDeliveryStore = defineStore('delivery', () => {
       if (currentUser.value?.role === 'admin') {
         const dailyMenusPayload = await apiRequest<Array<Record<string, unknown>>>('/daily-menus', undefined, true)
         normalizeDailyMenus(dailyMenusPayload)
+        await fetchTenantSettings()
+      } else if (currentUser.value?.role === 'client') {
+        await fetchClientProfile()
       }
     } catch {
       products.value = []
@@ -714,6 +1012,16 @@ export const useDeliveryStore = defineStore('delivery', () => {
     currentUser.value = null
     publicTenantSlug.value = ''
     storefrontName.value = 'Dunamis Store'
+    clientProfile.value = {
+      displayName: '',
+      email: '',
+      phone: '',
+      lastAddress: '',
+      apartment: '',
+      addressReference: '',
+      deliveryNotes: '',
+      avatarUrl: null,
+    }
     authError.value = ''
     apiToken.value = ''
     persistAuth()
@@ -739,6 +1047,10 @@ export const useDeliveryStore = defineStore('delivery', () => {
         label: String(item.label || ''),
       }))
       normalizeOrders(orderPayload)
+      await fetchStorefront(activeTenantSlug.value)
+      if (currentUser.value?.role === 'client') {
+        await fetchClientProfile()
+      }
     } catch {
       // noop
     }
@@ -755,6 +1067,7 @@ export const useDeliveryStore = defineStore('delivery', () => {
         normalizeCustomerInsights(customersPayload)
         normalizeAuditLogs(auditPayload)
         normalizeDailyMenus(dailyMenusPayload)
+        await fetchTenantSettings()
       } catch {
         users.value = []
         employees.value = []
@@ -780,7 +1093,7 @@ export const useDeliveryStore = defineStore('delivery', () => {
         }
       } else {
         employees.value = []
-        if (shiftEmployeeId.value && currentUser.value?.role !== 'admin') {
+        if (shiftEmployeeId.value) {
           shiftEmployeeId.value = null
         }
       }
@@ -800,7 +1113,7 @@ export const useDeliveryStore = defineStore('delivery', () => {
         }
       } else {
         drivers.value = []
-        if (shiftDriverId.value && currentUser.value?.role !== 'admin') {
+        if (shiftDriverId.value) {
           shiftDriverId.value = null
         }
       }
@@ -1631,10 +1944,17 @@ export const useDeliveryStore = defineStore('delivery', () => {
     currentUser,
     publicTenantSlug,
     storefrontName,
+    tenantSettings,
+    clientProfile,
     authError,
     isAuthenticated,
     activeTenantSlug,
     activeStorefrontName,
+    shippingFeeArs,
+    freeShippingThresholdArs,
+    storefrontLogoUrl,
+    storefrontThemeKey,
+    storefrontPrimaryColor,
     allowedRouteByRole,
     activeOrders,
     kitchenOrders,
@@ -1661,6 +1981,9 @@ export const useDeliveryStore = defineStore('delivery', () => {
     initializeAuth,
     setPublicTenantSlug,
     fetchStorefront,
+    fetchTenantSettings,
+    fetchClientProfile,
+    updateOwnProfile,
     login,
     loginWithGoogle,
     logout,
@@ -1689,6 +2012,8 @@ export const useDeliveryStore = defineStore('delivery', () => {
     duplicateProduct,
     bulkUpdateProductPrices,
     setCustomerBlocked,
+    updateTenantSettings,
+    updateClientProfile,
     toggleEmployee,
     toggleDriver,
     assignEmployee,

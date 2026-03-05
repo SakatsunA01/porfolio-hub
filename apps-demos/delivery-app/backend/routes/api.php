@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\StorefrontController;
+use App\Http\Controllers\Api\TenantSettingsController;
 use App\Http\Controllers\Api\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -100,6 +101,9 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::delete('/daily-menus/{dailyMenu}', [DailyMenuController::class, 'destroy']);
     Route::post('/daily-menus/{dailyMenu}/items', [DailyMenuController::class, 'upsertItem']);
     Route::delete('/daily-menus/{dailyMenu}/items/{item}', [DailyMenuController::class, 'removeItem']);
+
+    Route::get('/tenant-settings', [TenantSettingsController::class, 'show']);
+    Route::put('/tenant-settings', [TenantSettingsController::class, 'update']);
 });
 
 Route::middleware(['auth:sanctum', 'role:superadmin'])->prefix('superadmin')->group(function () {
@@ -112,7 +116,10 @@ Route::middleware(['auth:sanctum', 'role:superadmin'])->prefix('superadmin')->gr
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/client/profile', [CustomerProfileController::class, 'self'])->middleware('role:client');
+    Route::put('/client/profile', [CustomerProfileController::class, 'updateSelf'])->middleware('role:client');
     Route::post('/orders', [OrderController::class, 'store'])->middleware('role:client,admin');
     Route::get('/orders', [OrderController::class, 'index']);
     Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus'])->middleware('role:admin,employee,driver');
