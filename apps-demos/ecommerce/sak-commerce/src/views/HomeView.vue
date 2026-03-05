@@ -84,7 +84,7 @@
         </SectionTitle>
         <router-link
           to="/catalog"
-          class="text-sm tracking-wide text-text-secondary transition duration-200 ease-out hover:text-text-primary"
+          class="text-sm tracking-wide text-accent-olive transition duration-200 ease-out hover:opacity-80"
         >
           Ver catalogo completo
         </router-link>

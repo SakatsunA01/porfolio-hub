@@ -13,6 +13,12 @@ type StorefrontSettings = {
 
 const defaultPalette = ['#F7F5F0', '#ECE7DF', '#22221F', '#5A5A55', '#4F5D47']
 
+const isValidHex = (value: string) => /^#[A-Fa-f0-9]{6}$/.test(value)
+const normalizeHex = (value: string, fallback: string) => {
+  const normalized = value?.trim().startsWith('#') ? value.trim() : `#${value?.trim() || ''}`
+  return isValidHex(normalized) ? normalized.toUpperCase() : fallback
+}
+
 const hexToRgb = (hex: string) => {
   const normalized = hex.replace('#', '')
   const safeHex = normalized.length === 6 ? normalized : '000000'
@@ -23,13 +29,25 @@ const hexToRgb = (hex: string) => {
   return `${r} ${g} ${b}`
 }
 
+const normalizePalette = (palette: unknown): string[] => {
+  if (!Array.isArray(palette) || palette.length < 5) {
+    return [...defaultPalette]
+  }
+
+  const next = defaultPalette.map((fallback, index) =>
+    normalizeHex(String(palette[index] ?? fallback), fallback),
+  )
+
+  return next
+}
+
 const applyPaletteToDocument = (palette: string[]) => {
   if (typeof document === 'undefined') {
     return
   }
 
   const [bgPrimary, bgSecondary, textPrimary, textSecondary, accentOlive] = palette
-  const accentClay = palette[3] || defaultPalette[3]
+  const accentClay = palette[4] || defaultPalette[4]
   const root = document.documentElement
 
   root.style.setProperty('--bg-primary-rgb', hexToRgb(bgPrimary || defaultPalette[0]))
@@ -72,13 +90,11 @@ export const useStorefrontSettingsStore = defineStore('storefront-settings', {
         this.settings = {
           ...this.settings,
           ...data,
-          brand_palette: Array.isArray(data.brand_palette) && data.brand_palette.length === 5
-            ? data.brand_palette
-            : defaultPalette,
+          brand_palette: normalizePalette(data.brand_palette),
         }
         this.hasLoaded = true
       } catch {
-        this.settings.brand_palette = defaultPalette
+        this.settings.brand_palette = [...defaultPalette]
       } finally {
         applyPaletteToDocument(this.settings.brand_palette)
         this.isLoading = false

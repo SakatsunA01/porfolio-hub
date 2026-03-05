@@ -1,30 +1,37 @@
 /** @type {import('tailwindcss').Config} */
+const withOpacity = (cssVar) => ({ opacityValue }) => {
+  if (opacityValue !== undefined) {
+    return `rgb(var(${cssVar}) / ${opacityValue})`
+  }
+  return `rgb(var(${cssVar}) / 1)`
+}
+
 module.exports = {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
         bg: {
-          primary: 'rgb(var(--bg-primary-rgb) / <alpha-value>)',
-          secondary: 'rgb(var(--bg-secondary-rgb) / <alpha-value>)',
+          primary: withOpacity('--bg-primary-rgb'),
+          secondary: withOpacity('--bg-secondary-rgb'),
         },
         text: {
-          primary: 'rgb(var(--text-primary-rgb) / <alpha-value>)',
-          secondary: 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
+          primary: withOpacity('--text-primary-rgb'),
+          secondary: withOpacity('--text-secondary-rgb'),
         },
         accent: {
-          olive: 'rgb(var(--accent-olive-rgb) / <alpha-value>)',
-          clay: 'rgb(var(--accent-clay-rgb) / <alpha-value>)',
+          olive: withOpacity('--accent-olive-rgb'),
+          clay: withOpacity('--accent-clay-rgb'),
         },
         state: {
           error: '#9C5C4C',
         },
-        'axis-primary': 'rgb(var(--bg-primary-rgb) / <alpha-value>)',
-        'axis-secondary': 'rgb(var(--text-primary-rgb) / <alpha-value>)',
-        'axis-tertiary': 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
-        'axis-accent': 'rgb(var(--accent-olive-rgb) / <alpha-value>)',
-        'axis-clay': 'rgb(var(--accent-clay-rgb) / <alpha-value>)',
-        'axis-neutral': 'rgb(var(--bg-secondary-rgb) / <alpha-value>)',
+        'axis-primary': withOpacity('--bg-primary-rgb'),
+        'axis-secondary': withOpacity('--text-primary-rgb'),
+        'axis-tertiary': withOpacity('--text-secondary-rgb'),
+        'axis-accent': withOpacity('--accent-olive-rgb'),
+        'axis-clay': withOpacity('--accent-clay-rgb'),
+        'axis-neutral': withOpacity('--bg-secondary-rgb'),
       },
       fontFamily: {
         serif: ['Playfair Display', 'serif'],

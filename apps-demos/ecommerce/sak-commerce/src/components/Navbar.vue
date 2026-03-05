@@ -11,7 +11,7 @@
           v-for="item in navigationItems"
           :key="item.label"
           :to="item.to"
-          class="text-sm tracking-wide text-text-secondary transition duration-200 ease-out hover:text-text-primary"
+          class="text-sm tracking-wide text-text-secondary transition duration-200 ease-out hover:text-accent-olive"
         >
           {{ item.label }}
         </router-link>
@@ -20,13 +20,13 @@
       <div class="flex items-center gap-3">
         <button
           type="button"
-          class="relative min-h-12 min-w-12 border border-bg-secondary px-3 py-2 text-sm tracking-wide text-text-secondary transition duration-200 ease-out hover:border-text-secondary hover:text-text-primary"
+          class="relative min-h-12 min-w-12 border border-accent-olive px-3 py-2 text-sm tracking-wide text-accent-olive transition duration-200 ease-out hover:opacity-90"
           @click="openCart"
         >
           Carrito
           <span
             v-if="cartCount > 0"
-            class="absolute -right-2 -top-2 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full bg-text-primary px-1 text-[11px] text-bg-primary transition duration-200 ease-out"
+            class="absolute -right-2 -top-2 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full bg-accent-olive px-1 text-[11px] text-bg-primary transition duration-200 ease-out"
           >
             {{ cartCount }}
           </span>

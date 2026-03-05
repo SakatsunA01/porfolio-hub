@@ -41,6 +41,7 @@
               <label class="mb-2 block text-sm tracking-wide text-text-secondary">Paleta de colores (5)</label>
               <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <div v-for="(color, index) in form.brand_palette" :key="index" class="space-y-2">
+                  <p class="text-xs tracking-wide text-text-secondary">{{ paletteSlots[index].label }}</p>
                   <input
                     v-model="form.brand_palette[index]"
                     type="color"
@@ -51,9 +52,46 @@
                     type="text"
                     class="w-full rounded-[12px] border border-bg-secondary bg-bg-primary px-2 py-1 text-xs text-text-secondary outline-none"
                   />
+                  <p class="text-[11px] leading-4 text-text-secondary">{{ paletteSlots[index].impact }}</p>
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section class="rounded-[16px] border border-bg-secondary bg-bg-primary p-6">
+          <h2 class="font-serif text-2xl tracking-wide text-text-primary">Vista previa de impacto</h2>
+          <p class="mt-2 text-sm text-text-secondary">
+            Esta preview muestra como impactan los colores en fondo, textos, cards y botones antes de guardar.
+          </p>
+
+          <div class="mt-5 grid gap-4 md:grid-cols-2">
+            <article
+              class="border p-4"
+              :style="{ backgroundColor: previewPalette[0], borderColor: previewPalette[1], color: previewPalette[2] }"
+            >
+              <h3 class="font-serif text-2xl tracking-wide">Titular de seccion</h3>
+              <p class="mt-2 text-sm" :style="{ color: previewPalette[3] }">
+                Texto secundario para descripcion y cuerpo editorial.
+              </p>
+            </article>
+
+            <article
+              class="border p-4"
+              :style="{ backgroundColor: previewPalette[1], borderColor: previewPalette[1] }"
+            >
+              <p class="text-sm tracking-wide" :style="{ color: previewPalette[3] }">Card / Surface</p>
+              <p class="mt-2 font-serif text-2xl tracking-wide" :style="{ color: previewPalette[2] }">Producto destacado</p>
+              <div class="mt-4 flex gap-3">
+                <button class="px-4 py-2 text-sm tracking-wide" :style="{ backgroundColor: previewPalette[2], color: previewPalette[0] }">
+                  Boton primario
+                </button>
+                <button class="px-4 py-2 text-sm tracking-wide border" :style="{ borderColor: previewPalette[2], color: previewPalette[2] }">
+                  Boton secundario
+                </button>
+              </div>
+              <p class="mt-4 text-sm tracking-wide" :style="{ color: previewPalette[4] }">Color de acento (links/badges)</p>
+            </article>
           </div>
         </section>
 
@@ -97,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AdminLayout from '../../components/admin/AdminLayout.vue'
 import api from '../../services/api'
 import { useToast } from '../../composables/useToast'
@@ -125,6 +163,22 @@ const form = ref<StoreSettings>({
   philosophy_text: '',
   contact_text: '',
   team_text: '',
+})
+
+const paletteSlots = [
+  { label: 'Fondo principal', impact: 'Impacta en fondo general del storefront.' },
+  { label: 'Fondo secundario', impact: 'Impacta en cards, secciones y superficies.' },
+  { label: 'Texto principal', impact: 'Titulos, botones primarios y contenido clave.' },
+  { label: 'Texto secundario', impact: 'Parrafos, etiquetas y metadata visual.' },
+  { label: 'Acento', impact: 'Links, estados destacados y micro-acciones.' },
+]
+
+const previewPalette = computed(() => {
+  const fallback = ['#F7F5F0', '#ECE7DF', '#22221F', '#5A5A55', '#4F5D47']
+  if (!Array.isArray(form.value.brand_palette) || form.value.brand_palette.length < 5) {
+    return fallback
+  }
+  return form.value.brand_palette.map((color, index) => color || fallback[index])
 })
 
 const loadSettings = async () => {
@@ -157,7 +211,10 @@ const saveSettings = async () => {
   try {
     const payload = new FormData()
     payload.append('name', form.value.name)
-    form.value.brand_palette.forEach((color, index) => payload.append(`brand_palette[${index}]`, color))
+    form.value.brand_palette.forEach((color, index) => {
+      const normalized = color.startsWith('#') ? color.toUpperCase() : `#${color.toUpperCase()}`
+      payload.append(`brand_palette[${index}]`, normalized)
+    })
     payload.append('manifesto_text', form.value.manifesto_text || '')
     payload.append('philosophy_text', form.value.philosophy_text || '')
     payload.append('contact_text', form.value.contact_text || '')

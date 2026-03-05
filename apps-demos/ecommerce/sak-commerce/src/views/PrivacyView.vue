@@ -1,18 +1,17 @@
 <template>
-  <div class="bg-white py-24 sm:py-32">
-    <div class="mx-auto max-w-7xl px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl lg:mx-0">
-        <h2 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl font-display">Política de Privacidad</h2>
-        <p class="mt-6 text-lg leading-8 text-gray-600">
-          En Axis Tech, nos tomamos muy en serio tu privacidad. Esta política de privacidad describe cómo recopilamos, usamos y protegemos tu información personal.
+  <section class="bg-bg-primary py-section">
+    <div class="mx-auto max-w-container px-6">
+      <div class="mx-auto max-w-3xl">
+        <h1 class="font-serif text-4xl tracking-wide text-text-primary">Politica de Privacidad</h1>
+        <p class="mt-6 text-base leading-relaxed text-text-secondary">
+          En esta tienda tratamos los datos con criterio de minima recoleccion y uso especifico para compra, envio y soporte.
         </p>
-        <p class="mt-6 text-lg leading-8 text-gray-600">
-          (Contenido detallado de la política de privacidad iría aquí.)
+        <p class="mt-6 text-base leading-relaxed text-text-secondary">
+          La informacion de cuenta y pedidos se conserva solo para operacion comercial, cumplimiento fiscal y mejora del servicio.
         </p>
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
-<script setup lang="ts">
-</script>
+<script setup lang="ts"></script>

@@ -17,6 +17,10 @@
         <p class="text-sm text-text-secondary">
           {{ formatPrice(product.price) }}
         </p>
+
+        <span class="inline-block pt-1 text-xs tracking-wide text-accent-olive">
+          Ver detalle
+        </span>
       </div>
     </router-link>
   </div>

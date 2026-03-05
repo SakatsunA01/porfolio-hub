@@ -43,7 +43,7 @@
       >
         <div
           v-if="open"
-          class="absolute right-0 z-40 mt-3 min-w-56 rounded-[16px] border border-bg-secondary bg-white/95 p-3 backdrop-blur-sm"
+          class="absolute right-0 z-40 mt-3 min-w-56 rounded-[16px] border border-bg-secondary bg-bg-primary/95 p-3 backdrop-blur-sm"
         >
           <div class="space-y-1">
             <router-link

@@ -1,6 +1,6 @@
 <template>
   <section class="flex min-h-screen items-center justify-center bg-bg-secondary px-6 py-section-sm">
-    <div class="w-full max-w-lg rounded-[24px] border border-bg-secondary bg-white p-8 md:p-10">
+    <div class="w-full max-w-lg rounded-[24px] border border-bg-secondary bg-bg-primary p-8 md:p-10">
       <div class="mb-10 text-center">
         <p class="text-sm tracking-wide text-text-secondary">Registro</p>
         <h1 class="mt-3 font-serif text-4xl tracking-wide text-text-primary">
