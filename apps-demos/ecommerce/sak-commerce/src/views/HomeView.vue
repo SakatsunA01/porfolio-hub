@@ -100,16 +100,11 @@
         Ediciones limitadas
       </SectionTitle>
 
-      <div class="grid gap-16 md:grid-cols-2">
-        <article v-for="edition in limitedEditions" :key="edition.id" class="space-y-5">
-          <h3 class="font-serif text-2xl tracking-wide text-text-primary">
-            {{ edition.name }}
-          </h3>
-          <p class="max-w-md text-text-secondary">
-            {{ edition.description }}
-          </p>
+      <div class="grid gap-12 md:grid-cols-2">
+        <article v-for="product in limitedEditions" :key="product.id" class="space-y-4">
+          <ProductCard :product="product" />
           <p class="text-sm tracking-wide text-text-secondary">
-            Disponible en {{ edition.units }} unidades
+            Disponible en {{ product.stock }} unidades
           </p>
         </article>
       </div>
@@ -153,13 +148,7 @@ const curatedProducts = computed(() => catalogStore.products.slice(0, 4))
 const limitedEditions = computed(() =>
   catalogStore.products
     .filter((product) => product.type === 'limited')
-    .slice(0, 2)
-    .map((product) => ({
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      units: product.stock,
-    })),
+    .slice(0, 4),
 )
 
 const manifestoText = computed(() =>

@@ -53,7 +53,7 @@
           class="border border-bg-secondary bg-bg-primary px-4 py-3 text-sm text-text-primary outline-none transition duration-200 ease-out focus:border-text-secondary"
           @change="runSearch"
         >
-          <option :value="null">Todas las categorias</option>
+          <option value="">Todas las categorias</option>
           <option v-for="category in catalogStore.categories" :key="category.id" :value="category.name">
             {{ category.name }}
           </option>
@@ -64,7 +64,7 @@
           class="border border-bg-secondary bg-bg-primary px-4 py-3 text-sm text-text-primary outline-none transition duration-200 ease-out focus:border-text-secondary"
           @change="runSearch"
         >
-          <option :value="null">Todos los tipos</option>
+          <option value="">Todos los tipos</option>
           <option value="permanent">Permanente</option>
           <option value="limited">Edicion limitada</option>
           <option value="preorder">Preventa</option>
@@ -126,6 +126,7 @@ import BaseSection from '../components/BaseSection.vue'
 import ProductCard from '../components/ProductCard.vue'
 import { useCatalogStore } from '../stores/catalog'
 import type { SearchIntent } from '../types/commerce'
+import type { ProductType } from '../types/catalog'
 import { featureFlags } from '../config/features'
 
 const catalogStore = useCatalogStore()
@@ -133,17 +134,17 @@ const catalogStore = useCatalogStore()
 let searchDebounce: ReturnType<typeof setTimeout> | null = null
 
 const availableIntentChips = computed(() => {
-  return (catalogStore.suggestedIntents.length ? catalogStore.suggestedIntents : ['Audio', 'Carga', 'Accesorios']) as SearchIntent[]
+  return (catalogStore.suggestedIntents.length ? catalogStore.suggestedIntents : catalogStore.categories.map((category) => category.name)) as SearchIntent[]
 })
 
 const categoryFacet = computed({
-  get: () => catalogStore.facets.category,
-  set: (value: string | null) => catalogStore.setFacet('category', value),
+  get: () => catalogStore.facets.category ?? '',
+  set: (value: string) => catalogStore.setFacet('category', value || null),
 })
 
 const typeFacet = computed({
-  get: () => catalogStore.facets.type,
-  set: (value: 'permanent' | 'limited' | 'preorder' | null) => catalogStore.setFacet('type', value),
+  get: () => catalogStore.facets.type ?? '',
+  set: (value: ProductType | '') => catalogStore.setFacet('type', value || null),
 })
 
 const priceFacet = computed({

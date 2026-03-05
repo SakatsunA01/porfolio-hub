@@ -51,12 +51,13 @@ import { useCatalogStore } from '../stores/catalog'
 
 const route = useRoute()
 const catalogStore = useCatalogStore()
-const categoryName = computed(() => route.params.categoryName as string)
+const categoryName = computed(() => decodeURIComponent(String(route.params.categoryName || '')).trim())
 const sortBy = ref('newest')
 
-const productsByCategory = computed(() =>
-  catalogStore.products.filter((product) => product.category === categoryName.value),
-)
+const productsByCategory = computed(() => {
+  const selected = categoryName.value.toLocaleLowerCase()
+  return catalogStore.products.filter((product) => product.category.toLocaleLowerCase() === selected)
+})
 
 const sortedProducts = computed(() => {
   const sorted = [...productsByCategory.value]

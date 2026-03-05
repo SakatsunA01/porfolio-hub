@@ -61,7 +61,7 @@ class StorefrontCatalogController extends Controller
         return response()->json([
             'data' => [
                 'name' => $commerce?->name ?? 'Tienda',
-                'logo_url' => $commerce?->logo_path ? Storage::url($commerce->logo_path) : null,
+                'logo_url' => $commerce?->logo_path ? url(Storage::url($commerce->logo_path)) : null,
                 'brand_palette' => $commerce?->brand_palette ?? [
                     '#F7F5F0',
                     '#ECE7DF',

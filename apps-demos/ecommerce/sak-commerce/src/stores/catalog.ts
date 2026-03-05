@@ -27,7 +27,7 @@ export const useCatalogStore = defineStore('catalog', {
       priceRange: 'all',
     } as FacetState,
     searchResults: [] as Product[],
-    suggestedIntents: ['Audio', 'Carga', 'Accesorios'] as string[],
+    suggestedIntents: [] as string[],
   }),
 
   getters: {
@@ -43,6 +43,17 @@ export const useCatalogStore = defineStore('catalog', {
   },
 
   actions: {
+    syncSuggestedIntents() {
+      const fromCategories = this.categories
+        .map((category) => category.name.trim())
+        .filter((name) => name.length > 0)
+
+      const fallback = this.products
+        .map((product) => product.category?.trim())
+        .filter((name): name is string => Boolean(name))
+
+      this.suggestedIntents = Array.from(new Set([...fromCategories, ...fallback])).slice(0, 6)
+    },
     async fetchProducts(force = false) {
       if (this.isLoadingProducts) {
         return
@@ -57,6 +68,7 @@ export const useCatalogStore = defineStore('catalog', {
       try {
         const response = await api.get<CatalogResponse<Product[]>>('/store/products')
         this.products = response.data.data
+        this.syncSuggestedIntents()
         this.hasLoadedProducts = true
       } finally {
         this.isLoadingProducts = false
@@ -97,6 +109,7 @@ export const useCatalogStore = defineStore('catalog', {
       try {
         const response = await api.get<CatalogResponse<CatalogCategory[]>>('/store/categories')
         this.categories = response.data.data
+        this.syncSuggestedIntents()
         this.hasLoadedCategories = true
       } finally {
         this.isLoadingCategories = false
@@ -121,7 +134,7 @@ export const useCatalogStore = defineStore('catalog', {
         priceRange: 'all',
       }
       this.searchResults = []
-      this.suggestedIntents = ['Audio', 'Carga', 'Accesorios']
+      this.syncSuggestedIntents()
     },
     async searchStorefront() {
       this.isSearching = true
@@ -164,9 +177,7 @@ export const useCatalogStore = defineStore('catalog', {
           meta?: { intents?: string[] }
         }>('/store/search', { params })
         this.searchResults = response.data.data
-        this.suggestedIntents = response.data.meta?.intents?.length
-          ? response.data.meta.intents
-          : ['Audio', 'Carga', 'Accesorios']
+        this.syncSuggestedIntents()
       } catch {
         const q = this.searchQuery.trim().toLowerCase()
         const semanticMap: Record<string, string[]> = {
@@ -207,7 +218,7 @@ export const useCatalogStore = defineStore('catalog', {
           .map((item) => item.product)
 
         this.searchResults = this.applyFacetFilters(scored)
-        this.suggestedIntents = ['Audio', 'Carga', 'Accesorios']
+        this.syncSuggestedIntents()
       } finally {
         this.isSearching = false
       }

@@ -74,7 +74,7 @@ class AdminStoreSettingsController extends Controller
         return [
             'commerce_id' => $commerce->id,
             'name' => $commerce->name,
-            'logo_url' => $commerce->logo_path ? Storage::url($commerce->logo_path) : null,
+            'logo_url' => $commerce->logo_path ? url(Storage::url($commerce->logo_path)) : null,
             'logo_path' => $commerce->logo_path,
             'brand_palette' => $commerce->brand_palette ?? [
                 '#F7F5F0',

@@ -1,45 +1,19 @@
 <template>
-  <section class="bg-axis-primary py-12">
+  <section class="bg-bg-primary py-12">
     <div class="axis-container">
       <div class="mb-6">
-        <h2 class="text-2xl font-display font-bold text-axis-secondary">Explora por categoria</h2>
+        <h2 class="font-serif text-3xl tracking-wide text-text-primary">Explora por categoria</h2>
       </div>
 
-      <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <router-link
-          to="/category/Audio"
-          class="group rounded-2xl border border-bg-secondary bg-bg-primary p-6 text-center transition duration-200 ease-out hover:bg-bg-secondary/40"
+          v-for="category in categories"
+          :key="category.id"
+          :to="`/category/${encodeURIComponent(category.name)}`"
+          class="border border-bg-secondary bg-bg-primary p-6 text-center transition duration-200 ease-out hover:bg-bg-secondary/40"
         >
-          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-bg-secondary transition duration-200 ease-out group-hover:bg-bg-primary">
-            <svg class="h-7 w-7 text-axis-secondary transition duration-200 ease-out group-hover:text-axis-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-            </svg>
-          </div>
-          <h3 class="mt-4 text-lg font-semibold text-axis-secondary">Audio</h3>
-        </router-link>
-
-        <router-link
-          to="/category/Carga"
-          class="group rounded-2xl border border-bg-secondary bg-bg-primary p-6 text-center transition duration-200 ease-out hover:bg-bg-secondary/40"
-        >
-          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-bg-secondary transition duration-200 ease-out group-hover:bg-bg-primary">
-            <svg class="h-7 w-7 text-axis-secondary transition duration-200 ease-out group-hover:text-axis-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <h3 class="mt-4 text-lg font-semibold text-axis-secondary">Carga</h3>
-        </router-link>
-
-        <router-link
-          to="/category/Accesorios"
-          class="group rounded-2xl border border-bg-secondary bg-bg-primary p-6 text-center transition duration-200 ease-out hover:bg-bg-secondary/40"
-        >
-          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-bg-secondary transition duration-200 ease-out group-hover:bg-bg-primary">
-            <svg class="h-7 w-7 text-axis-secondary transition duration-200 ease-out group-hover:text-axis-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <h3 class="mt-4 text-lg font-semibold text-axis-secondary">Accesorios</h3>
+          <h3 class="text-lg tracking-wide text-text-primary">{{ category.name }}</h3>
+          <p class="mt-2 text-xs tracking-wide text-text-secondary">{{ category.products_count }} productos</p>
         </router-link>
       </div>
     </div>
@@ -47,4 +21,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted } from 'vue'
+import { useCatalogStore } from '../stores/catalog'
+
+const catalogStore = useCatalogStore()
+const categories = computed(() => catalogStore.categories)
+
+onMounted(() => {
+  catalogStore.fetchCategories()
+})
 </script>

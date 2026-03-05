@@ -38,7 +38,31 @@
             </div>
 
             <div class="md:col-span-2">
-              <label class="mb-2 block text-sm tracking-wide text-text-secondary">Paleta de colores (5)</label>
+              <label class="mb-2 block text-sm tracking-wide text-text-secondary">Paletas recomendadas</label>
+              <div class="grid gap-3 md:grid-cols-2">
+                <button
+                  v-for="palette in recommendedPalettes"
+                  :key="palette.title"
+                  type="button"
+                  class="space-y-3 rounded-[16px] border border-bg-secondary bg-bg-primary p-4 text-left transition duration-200 ease-out hover:border-text-secondary"
+                  @click="applyRecommendedPalette(palette.colors)"
+                >
+                  <p class="text-sm tracking-wide text-text-primary">{{ palette.title }}</p>
+                  <div class="grid grid-cols-5 gap-2">
+                    <span
+                      v-for="(color, index) in palette.colors"
+                      :key="`${palette.title}-${index}`"
+                      class="h-8 w-full rounded-[10px] border border-bg-secondary"
+                      :style="{ backgroundColor: color }"
+                    />
+                  </div>
+                  <p class="text-xs tracking-wide text-text-secondary">Usar paleta</p>
+                </button>
+              </div>
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="mb-2 block text-sm tracking-wide text-text-secondary">Paleta custom (5)</label>
               <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <div v-for="(color, index) in form.brand_palette" :key="index" class="space-y-2">
                   <p class="text-xs tracking-wide text-text-secondary">{{ paletteSlots[index].label }}</p>
@@ -52,7 +76,6 @@
                     type="text"
                     class="w-full rounded-[12px] border border-bg-secondary bg-bg-primary px-2 py-1 text-xs text-text-secondary outline-none"
                   />
-                  <p class="text-[11px] leading-4 text-text-secondary">{{ paletteSlots[index].impact }}</p>
                 </div>
               </div>
             </div>
@@ -166,11 +189,34 @@ const form = ref<StoreSettings>({
 })
 
 const paletteSlots = [
-  { label: 'Fondo principal', impact: 'Impacta en fondo general del storefront.' },
-  { label: 'Fondo secundario', impact: 'Impacta en cards, secciones y superficies.' },
-  { label: 'Texto principal', impact: 'Titulos, botones primarios y contenido clave.' },
-  { label: 'Texto secundario', impact: 'Parrafos, etiquetas y metadata visual.' },
-  { label: 'Acento', impact: 'Links, estados destacados y micro-acciones.' },
+  { label: 'Fondo principal' },
+  { label: 'Fondo secundario' },
+  { label: 'Texto principal' },
+  { label: 'Texto secundario' },
+  { label: 'Acento' },
+]
+
+const recommendedPalettes = [
+  {
+    title: 'Quiet Luxury Warm',
+    colors: ['#F7F2EA', '#E8DDD1', '#1F1F1F', '#4C3F36', '#1C3F5A'],
+  },
+  {
+    title: 'Porcelain & Sage',
+    colors: ['#F5F7F6', '#E2E9E4', '#1E2421', '#3C4A43', '#B66A3C'],
+  },
+  {
+    title: 'Minimal Tech Luxury',
+    colors: ['#F6F7FB', '#E6E9F2', '#111318', '#3A4350', '#2F5BFF'],
+  },
+  {
+    title: 'Heritage Premium',
+    colors: ['#FBF6EE', '#EFE1D4', '#1C1A18', '#5A3E35', '#7A1E2C'],
+  },
+  {
+    title: 'Biofilico Contemporaneo',
+    colors: ['#F3EFE7', '#E7D9CB', '#20211F', '#4A463F', '#1F5B3A'],
+  },
 ]
 
 const previewPalette = computed(() => {
@@ -204,6 +250,10 @@ const onLogoChange = (event: Event) => {
   if (file) {
     logoPreview.value = URL.createObjectURL(file)
   }
+}
+
+const applyRecommendedPalette = (colors: string[]) => {
+  form.value.brand_palette = [...colors]
 }
 
 const saveSettings = async () => {

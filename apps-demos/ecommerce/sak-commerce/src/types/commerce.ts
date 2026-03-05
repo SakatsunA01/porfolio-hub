@@ -13,7 +13,7 @@ export interface ValidationFieldState {
   valid: boolean
 }
 
-export type SearchIntent = 'Audio' | 'Carga' | 'Accesorios' | 'Eco'
+export type SearchIntent = string
 
 export interface FacetState {
   category: string | null

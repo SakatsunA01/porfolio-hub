@@ -12,6 +12,7 @@ type StorefrontSettings = {
 }
 
 const defaultPalette = ['#F7F5F0', '#ECE7DF', '#22221F', '#5A5A55', '#4F5D47']
+const backendUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
 const isValidHex = (value: string) => /^#[A-Fa-f0-9]{6}$/.test(value)
 const normalizeHex = (value: string, fallback: string) => {
@@ -39,6 +40,22 @@ const normalizePalette = (palette: unknown): string[] => {
   )
 
   return next
+}
+
+const normalizeLogoUrl = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    return value
+  }
+
+  if (value.startsWith('/') && backendUrl) {
+    return `${backendUrl}${value}`
+  }
+
+  return value
 }
 
 const applyPaletteToDocument = (palette: string[]) => {
@@ -90,6 +107,7 @@ export const useStorefrontSettingsStore = defineStore('storefront-settings', {
         this.settings = {
           ...this.settings,
           ...data,
+          logo_url: normalizeLogoUrl(data.logo_url),
           brand_palette: normalizePalette(data.brand_palette),
         }
         this.hasLoaded = true
