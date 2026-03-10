@@ -3,6 +3,74 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --radius: 14px;
+
+    --background: 36 33% 97%;
+    --foreground: 222 22% 14%;
+
+    --card: 36 33% 99%;
+    --card-foreground: 222 22% 14%;
+
+    --muted: 28 18% 93%;
+    --muted-foreground: 220 10% 35%;
+
+    --border: 220 14% 86%;
+    --input: 220 14% 86%;
+
+    --primary: 162 55% 33%;
+    --primary-foreground: 210 40% 98%;
+
+    --accent: 156 35% 92%;
+    --accent-foreground: 222 22% 14%;
+
+    --success: 152 45% 34%;
+    --warning: 38 90% 55%;
+    --destructive: 0 72% 52%;
+
+    --ring: 162 70% 40%;
+
+    --glass: 210 20% 98% / 0.62;
+    --glass-border: 210 18% 85% / 0.55;
+
+    --leaf-1: 150 38% 70% / 0.18;
+    --leaf-2: 175 45% 55% / 0.12;
+    --water: 195 55% 55% / 0.1;
+  }
+
+  .dark {
+    --background: 222 20% 10%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 20% 12%;
+    --card-foreground: 210 40% 98%;
+
+    --muted: 222 16% 16%;
+    --muted-foreground: 215 18% 70%;
+
+    --border: 220 10% 22%;
+    --input: 220 10% 22%;
+
+    --primary: 162 60% 40%;
+    --primary-foreground: 222 22% 10%;
+
+    --accent: 222 16% 16%;
+    --accent-foreground: 210 40% 98%;
+
+    --success: 152 55% 42%;
+    --warning: 38 90% 58%;
+    --destructive: 0 70% 56%;
+
+    --ring: 162 70% 45%;
+
+    --glass: 222 18% 14% / 0.6;
+    --glass-border: 210 18% 40% / 0.25;
+
+    --leaf-1: 150 40% 55% / 0.16;
+    --leaf-2: 175 45% 45% / 0.1;
+    --water: 195 55% 45% / 0.08;
+  }
+
   * {
     box-sizing: border-box;
   }
@@ -17,5 +85,7 @@
 
   body {
     min-height: 100vh;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }

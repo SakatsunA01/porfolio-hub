@@ -1,15 +1,16 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { animate, stagger } from 'motion'
-import { Activity, Leaf, Waves } from 'lucide-vue-next'
 import ProjectModule from './ProjectModule.vue'
 import ProjectViewer from './ProjectViewer.vue'
-import forestCityBokeh from '../assets/images/forest-city-bokeh2.jpg'
+import WorkstationTelemetryBar from './WorkstationTelemetryBar.vue'
 import { resolveEnvironmentState } from '../environment/environmentController'
 import { resolveAdaptiveState } from '../system/adaptiveStateManager'
 
 const rootRef = ref(null)
 const mainPanelRef = ref(null)
+const backgroundVideoRef = ref(null)
+const videoDirection = ref(1)
 const pointer = ref({ x: 0, y: 0 })
 const eased = ref({ x: 0, y: 0 })
 
@@ -31,7 +32,9 @@ const districtEntryOverlay = ref({
   status: 'syncing',
 })
 const consoleMode = ref('business')
-const consoleCollapsed = ref(false)
+const consoleCollapsed = ref(true)
+const consolePaused = ref(false)
+const consoleFilter = ref('all')
 const isMobileViewport = ref(false)
 const mobileDrawerOpen = ref(false)
 const mobileConsoleOpen = ref(false)
@@ -43,8 +46,19 @@ const locationLabel = ref(fallbackLocation)
 const envLabel = ref('Buenos Aires Monitor')
 const humidityLevel = ref(82)
 const oxygenLevel = ref(94)
+const temperatureC = ref(null)
+const isRaining = ref(false)
 const latencyMs = ref(12)
+const latencySeries = ref([12, 14, 13, 15, 12, 11, 13, 14, 12, 13])
 const weatherMode = ref('clear')
+const lastSyncAt = ref(Date.now())
+const lastWeatherSyncAt = ref(Date.now())
+const weatherSource = ref('Open-Meteo')
+const geolocationPermission = ref('prompt')
+const locationSource = ref('fallback')
+const locationPrecision = ref('n/a')
+const latencyEndpoint = ref('/api/health')
+const latencyProbeFailed = ref(false)
 const environmentVars = ref(resolveEnvironmentState({ weatherCode: 0, humidity: humidityLevel.value }).cssVars)
 const scrollDepth = ref(0)
 const interactionEvents = ref([])
@@ -77,11 +91,21 @@ const i18n = {
     districtRole: 'Rol del distrito',
     workStyle: 'Forma de Trabajo',
     downloadCv: 'CV_SERGIO QUINTEROS',
-    activityStream: 'System Console',
+    activityStream: 'System Activity',
     consoleBusiness: 'Modo negocio',
     consoleExperimental: 'Modo experimental',
     consoleCollapse: 'Colapsar',
     consoleExpand: 'Expandir',
+    consolePause: 'Pausar',
+    consoleResume: 'Reanudar',
+    consoleClear: 'Limpiar',
+    consoleCopy: 'Copiar',
+    consoleLive: 'live',
+    consoleEvents: 'eventos',
+    consoleFilterAll: 'Todo',
+    consoleFilterSync: 'Sync',
+    consoleFilterNetwork: 'Red',
+    consoleFilterData: 'Datos',
     mobileStack: 'Stack',
     mobileConsole: 'Narrador',
     mobileArchitecture: 'Arquitectura',
@@ -156,11 +180,21 @@ const i18n = {
     districtRole: 'District role',
     workStyle: 'Working Style',
     downloadCv: 'CV_SERGIO QUINTEROS',
-    activityStream: 'System Console',
+    activityStream: 'System Activity',
     consoleBusiness: 'Business mode',
     consoleExperimental: 'Experimental mode',
     consoleCollapse: 'Collapse',
     consoleExpand: 'Expand',
+    consolePause: 'Pause',
+    consoleResume: 'Resume',
+    consoleClear: 'Clear',
+    consoleCopy: 'Copy',
+    consoleLive: 'live',
+    consoleEvents: 'events',
+    consoleFilterAll: 'All',
+    consoleFilterSync: 'Sync',
+    consoleFilterNetwork: 'Network',
+    consoleFilterData: 'Data',
     mobileStack: 'Stack',
     mobileConsole: 'Narrator',
     mobileArchitecture: 'Architecture',
@@ -219,38 +253,54 @@ const t = computed(() => i18n[lang.value])
 
 const stateDictionary = computed(() => (lang.value === 'es'
   ? {
-      stable: 'ESTABLE',
-      syncing: 'SINCRONIZANDO',
-      'deep-exploration': 'EXPLORACION PROFUNDA',
-      idle: 'IDLE',
-      browsing: 'NAVEGANDO',
-      interacting: 'INTERACTUANDO',
-    }
+    stable: 'ESTABLE',
+    syncing: 'SINCRONIZANDO',
+    'deep-exploration': 'EXPLORACION PROFUNDA',
+    idle: 'IDLE',
+    browsing: 'NAVEGANDO',
+    interacting: 'INTERACTUANDO',
+  }
   : {
-      stable: 'STABLE',
-      syncing: 'SYNCING',
-      'deep-exploration': 'DEEP EXPLORATION',
-      idle: 'IDLE',
-      browsing: 'BROWSING',
-      interacting: 'INTERACTING',
-    }))
+    stable: 'STABLE',
+    syncing: 'SYNCING',
+    'deep-exploration': 'DEEP EXPLORATION',
+    idle: 'IDLE',
+    browsing: 'BROWSING',
+    interacting: 'INTERACTING',
+  }))
 
 const hardSkillGroups = computed(() => (lang.value === 'es'
   ? [
-      { title: 'HERRAMIENTAS PRINCIPALES', highlight: true, items: ['Vue.js 3', 'Laravel 10', 'MySQL'] },
-      { title: 'DESARROLLO Y DISENO', highlight: false, items: ['JavaScript', 'PHP', 'Tailwind CSS', 'TypeScript'] },
-      { title: 'ENTORNO Y FLUJO', highlight: false, items: ['Git', 'Laragon', 'Terminal Linux/Bash', 'npm'] },
-    ]
+    { title: 'HERRAMIENTAS PRINCIPALES', highlight: true, items: ['Vue.js 3', 'Laravel 10', 'MySQL'] },
+    { title: 'DESARROLLO Y DISENO', highlight: false, items: ['JavaScript', 'PHP', 'Tailwind CSS', 'TypeScript'] },
+    { title: 'ENTORNO Y FLUJO', highlight: false, items: ['Git', 'Laragon', 'Terminal Linux/Bash', 'npm'] },
+  ]
   : [
-      { title: 'CORE TOOLING', highlight: true, items: ['Vue.js 3', 'Laravel 10', 'MySQL'] },
-      { title: 'DEVELOPMENT & DESIGN', highlight: false, items: ['JavaScript', 'PHP', 'Tailwind CSS', 'TypeScript'] },
-      { title: 'ENVIRONMENT & FLOW', highlight: false, items: ['Git', 'Laragon', 'Terminal Linux/Bash', 'npm'] },
-    ]))
+    { title: 'CORE TOOLING', highlight: true, items: ['Vue.js 3', 'Laravel 10', 'MySQL'] },
+    { title: 'DEVELOPMENT & DESIGN', highlight: false, items: ['JavaScript', 'PHP', 'Tailwind CSS', 'TypeScript'] },
+    { title: 'ENVIRONMENT & FLOW', highlight: false, items: ['Git', 'Laragon', 'Terminal Linux/Bash', 'npm'] },
+  ]))
 
 const projectTechSet = computed(() => new Set((proyectoActivo.value?.relatedTech || []).map((item) => item.toLowerCase())))
 const hasActiveProject = computed(() => Boolean(proyectoActivo.value))
 const panelHeading = computed(() => (hasActiveProject.value ? t.value.activeStackPanel : t.value.profilePanel))
 const districtRoleLabel = computed(() => proyectoActivo.value?.roleLabel || '')
+const openSkillSections = ref({})
+
+const initializeSkillSections = () => {
+  const next = {}
+  hardSkillGroups.value.forEach((group, index) => {
+    next[group.title] = index === 0
+  })
+  openSkillSections.value = next
+}
+
+const toggleSkillSection = (title) => {
+  openSkillSections.value = {
+    ...openSkillSections.value,
+    [title]: !openSkillSections.value[title],
+  }
+}
 
 const badgeContextClass = (skill) => {
   if (!hasActiveProject.value) return ''
@@ -259,21 +309,46 @@ const badgeContextClass = (skill) => {
 
 const engineeringAttributes = computed(() => (lang.value === 'es'
   ? [
-      { title: 'Optimizacion', detail: 'Me enfoco en hacer que los procesos sean mas rapidos y simples de usar.' },
-      { title: 'Comunicacion', detail: 'Puedo traducir necesidades de negocio a soluciones claras y utiles.' },
-      { title: 'Precision', detail: 'Trabajo con cuidado en los detalles para evitar errores y retrabajo.' },
-      { title: 'Agilidad', detail: 'Me adapto rapido a cambios y aprendo nuevas herramientas de forma continua.' },
-    ]
+    { title: 'Optimizacion', detail: 'Me enfoco en hacer que los procesos sean mas rapidos y simples de usar.' },
+    { title: 'Comunicacion', detail: 'Puedo traducir necesidades de negocio a soluciones claras y utiles.' },
+    { title: 'Precision', detail: 'Trabajo con cuidado en los detalles para evitar errores y retrabajo.' },
+    { title: 'Agilidad', detail: 'Me adapto rapido a cambios y aprendo nuevas herramientas de forma continua.' },
+  ]
   : [
-      { title: 'Optimization', detail: 'I focus on making processes faster and easier to use.' },
-      { title: 'Communication', detail: 'I translate business needs into clear and useful solutions.' },
-      { title: 'Precision', detail: 'I work carefully on details to prevent errors and rework.' },
+    { title: 'Optimization', detail: 'I focus on making processes faster and easier to use.' },
+    { title: 'Communication', detail: 'I translate business needs into clear and useful solutions.' },
+    { title: 'Precision', detail: 'I work carefully on details to prevent errors and rework.' },
       { title: 'Adaptability', detail: 'I adapt quickly to change and continuously learn new tools.' },
     ]))
+
+const repoProjects = computed(() => ([
+  {
+    name: 'Portfolio Home',
+    path: 'portfolio-home',
+    type: lang.value === 'es' ? 'Landing' : 'Landing',
+  },
+  {
+    name: 'Sak Commerce',
+    path: 'apps-demos/ecommerce',
+    type: lang.value === 'es' ? 'E-commerce' : 'E-commerce',
+  },
+  {
+    name: 'Dunamis SaaS',
+    path: 'apps-demos/dunamis-saas',
+    type: 'SaaS',
+  },
+  {
+    name: 'Delivery App',
+    path: 'apps-demos/delivery-app',
+    type: lang.value === 'es' ? 'Logistica' : 'Logistics',
+  },
+]))
 
 let frame = 0
 let reducedMotion = false
 let viewportMedia = null
+let rewindInterval = null
+let endpointHoldTimeout = null
 const logTimers = []
 const sensorTimers = []
 
@@ -282,11 +357,14 @@ const styleVars = computed(() => ({
   '--my': `${eased.value.y}px`,
   '--bgx': `${-eased.value.x * 0.26}px`,
   '--bgy': `${-eased.value.y * 0.22}px`,
+  '--bgzoom': '1.20',
   ...environmentVars.value,
   ...adaptiveVars.value,
 }))
 
 const compactLocationLabel = computed(() => {
+  const cityMatch = locationLabel.value.match(/\(([^)]+)\)/)
+  if (cityMatch?.[1]) return cityMatch[1].trim()
   const parts = locationLabel.value.split(',')
   return parts.length > 1 ? parts[0].trim() : locationLabel.value
 })
@@ -351,7 +429,8 @@ const clearSensorTimers = () => {
 }
 
 const pushConsoleEntry = (stream, line) => {
-  stream.value = [...stream.value.slice(-6), line]
+  if (consolePaused.value) return
+  stream.value = [...stream.value.slice(-40), { line, ts: Date.now() }]
 }
 
 const pushBusinessLog = (line) => {
@@ -536,13 +615,29 @@ const formatCoordinate = (value, positiveLabel, negativeLabel) => {
 }
 
 const setupGeolocation = () => {
-  if (!('geolocation' in navigator)) return
+  if (!('geolocation' in navigator)) {
+    geolocationPermission.value = 'unsupported'
+    locationSource.value = 'fallback'
+    return
+  }
+
+  if (navigator.permissions?.query) {
+    navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+      geolocationPermission.value = status.state
+    }).catch(() => { })
+  }
 
   navigator.geolocation.getCurrentPosition(
     (position) => {
       const { latitude, longitude } = position.coords
       currentCoords.value = { latitude, longitude }
       locationLabel.value = `${formatCoordinate(latitude, 'N', 'S')}, ${formatCoordinate(longitude, 'E', 'W')}`
+      locationSource.value = 'gps'
+      geolocationPermission.value = 'granted'
+      locationPrecision.value = Number(position.coords?.accuracy)
+        ? `±${Math.round(position.coords.accuracy)}m`
+        : 'n/a'
+      lastSyncAt.value = Date.now()
       pushTechnicalLog(t.value.logs.geoOk)
       pushTechnicalLog('[API_CALL] geolocation resolved')
       pushBusinessLog(t.value.businessLogs.geoOk)
@@ -551,6 +646,10 @@ const setupGeolocation = () => {
     () => {
       currentCoords.value = { ...fallbackCoords }
       locationLabel.value = fallbackLocation
+      locationSource.value = 'fallback'
+      geolocationPermission.value = geolocationPermission.value === 'prompt' ? 'denied' : geolocationPermission.value
+      locationPrecision.value = 'n/a'
+      lastSyncAt.value = Date.now()
       pushTechnicalLog('[API_CALL] geolocation fallback applied')
       fetchWeather()
     },
@@ -582,22 +681,36 @@ const applyEnvironmentState = (weatherCode, humidity = humidityLevel.value) => {
 const fetchWeather = async () => {
   try {
     const { latitude, longitude } = currentCoords.value
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=relative_humidity_2m,weather_code&timezone=auto`
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,weather_code,rain&timezone=auto`
     const response = await fetch(url, { cache: 'no-store' })
     const payload = await response.json()
     const current = payload?.current
     if (!current) throw new Error('Missing weather payload')
 
     humidityLevel.value = Number(current.relative_humidity_2m) || humidityLevel.value
+    const nextTemp = Number(current.temperature_2m)
+    temperatureC.value = Number.isFinite(nextTemp) ? Number(nextTemp.toFixed(1)) : null
+    const weatherCode = Number(current.weather_code)
+    const rainMm = Number(current.rain)
+    const rainyCodes = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99])
+    isRaining.value = rainyCodes.has(weatherCode) || (Number.isFinite(rainMm) && rainMm > 0)
     oxygenLevel.value = humidityLevel.value > 86 ? 90 : 95
-    applyEnvironmentState(Number(current.weather_code), humidityLevel.value)
+    applyEnvironmentState(weatherCode, humidityLevel.value)
+    weatherSource.value = 'Open-Meteo'
+    lastWeatherSyncAt.value = Date.now()
+    lastSyncAt.value = Date.now()
     pushTechnicalLog(t.value.logs.weatherOk)
     pushTechnicalLog('[API_CALL] weather forecast synced')
     pushBusinessLog(t.value.businessLogs.weatherOk)
   } catch {
     humidityLevel.value = 78
+    temperatureC.value = null
+    isRaining.value = false
     oxygenLevel.value = 95
     applyEnvironmentState(0, humidityLevel.value)
+    weatherSource.value = 'Fallback'
+    lastWeatherSyncAt.value = Date.now()
+    lastSyncAt.value = Date.now()
     pushTechnicalLog(t.value.logs.weatherFallback)
     pushTechnicalLog('[API_CALL] weather fallback applied')
     pushBusinessLog(t.value.businessLogs.weatherFallback)
@@ -609,20 +722,78 @@ const measureLatency = async () => {
   try {
     await fetch(window.location.origin, { cache: 'no-store' })
     latencyMs.value = Math.max(4, Math.round(performance.now() - startedAt))
+    latencySeries.value = [...latencySeries.value.slice(-59), latencyMs.value]
+    latencyProbeFailed.value = false
+    lastSyncAt.value = Date.now()
     pushTechnicalLog(`[API_CALL] latency probe completed in ${latencyMs.value}ms`)
   } catch {
     latencyMs.value = 28
+    latencySeries.value = [...latencySeries.value.slice(-59), latencyMs.value]
+    latencyProbeFailed.value = true
+    lastSyncAt.value = Date.now()
     pushTechnicalLog('[API_CALL] latency probe failed, fallback applied')
   }
 }
 
-const optimizationLabel = computed(() => {
-  if (latencyMs.value <= 18) return '+50% Efficiency'
-  if (latencyMs.value <= 32) return '+32% Efficiency'
-  return 'Baseline Efficiency'
+const formatAgo = (timestamp) => {
+  const deltaSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+  if (deltaSeconds < 45) return lang.value === 'en' ? 'just now' : 'justo ahora'
+  if (deltaSeconds < 90) return lang.value === 'en' ? '1 min ago' : 'hace 1 min'
+  if (deltaSeconds < 3600) return lang.value === 'en' ? `${Math.floor(deltaSeconds / 60)} min ago` : `hace ${Math.floor(deltaSeconds / 60)} min`
+  const hours = Math.floor(deltaSeconds / 3600)
+  return lang.value === 'en' ? `${hours} h ago` : `hace ${hours} h`
+}
+
+const branchLabel = computed(() => {
+  if (proyectoActivo.value?.slug?.includes('delivery')) return lang.value === 'en' ? 'Dispatch Hub' : 'Caja #2'
+  if (proyectoActivo.value?.slug?.includes('dunamis')) return lang.value === 'en' ? 'Operations Center' : 'Depósito A'
+  return lang.value === 'en' ? 'Downtown' : 'Centro'
 })
 
-const oxygenLabelText = computed(() => (oxygenLevel.value >= 94 ? t.value.oxygenOptimal : t.value.oxygenStable))
+const telemetryData = computed(() => ({
+  syncAgo: formatAgo(lastSyncAt.value),
+  branch: branchLabel.value,
+  userMode: userModeLabel.value,
+  lang: lang.value,
+  endpoint: latencyEndpoint.value,
+}))
+
+const healthData = computed(() => {
+  const apiState = latencyProbeFailed.value ? 'warn' : 'ok'
+  const serviceStates = {
+    api: apiState,
+    db: 'ok',
+    cache: 'ok',
+    jobs: systemState.value === 'syncing' ? 'warn' : 'ok',
+  }
+  const hasDown = Object.values(serviceStates).includes('down')
+  const hasWarn = Object.values(serviceStates).includes('warn')
+  return {
+    status: hasDown ? 'down' : hasWarn ? 'degraded' : 'stable',
+    services: serviceStates,
+  }
+})
+
+const weatherData = computed(() => ({
+  label: envLabel.value,
+  source: weatherSource.value,
+  humidity: humidityLevel.value,
+  temperatureC: temperatureC.value,
+  isRaining: isRaining.value,
+  updatedAgo: formatAgo(lastWeatherSyncAt.value),
+}))
+
+const locationData = computed(() => ({
+  label: locationLabel.value,
+  compactLabel: compactLocationLabel.value,
+  precision: locationPrecision.value,
+  source: locationSource.value,
+  fallback: fallbackLocation,
+}))
+
+const permissionsState = computed(() => ({
+  geolocation: geolocationPermission.value,
+}))
 
 const recentInteractionCount = computed(() => interactionEvents.value.length)
 const adaptiveState = computed(() => resolveAdaptiveState({
@@ -638,17 +809,6 @@ const systemState = computed(() => adaptiveState.value.systemState)
 
 const systemStateLabel = computed(() => stateDictionary.value[systemState.value])
 const userModeLabel = computed(() => stateDictionary.value[userMode.value])
-const mobileStateLabel = computed(() => {
-  if (systemState.value === 'deep-exploration') return t.value.mobileStateDeep
-  if (systemState.value === 'syncing' || userMode.value === 'interacting') return t.value.mobileStateAdaptive
-  return t.value.mobileStateStable
-})
-
-const statusToneClass = (value) => {
-  if (value === 'syncing' || value === 'interacting') return 'is-busy'
-  if (value === 'deep-exploration' || value === 'browsing') return 'is-shifting'
-  return 'is-stable'
-}
 
 const pruneInteractions = (now = Date.now()) => {
   interactionEvents.value = interactionEvents.value.filter((timestamp) => now - timestamp <= 12000)
@@ -682,6 +842,56 @@ const handleViewportInteraction = () => {
 
 const activeConsoleStream = computed(() => (consoleMode.value === 'business' ? businessStream.value : technicalStream.value))
 const consoleAwaitingLabel = computed(() => (consoleMode.value === 'business' ? t.value.awaitingBusiness : t.value.awaitingExperimental))
+const liveEventsCount = computed(() => activeConsoleStream.value.length)
+
+const classifyConsoleEntry = (line = '') => {
+  const normalized = line.toLowerCase()
+  if (normalized.includes('error') || normalized.includes('failed')) return { group: 'network', status: 'warn', label: 'NETWORK' }
+  if (normalized.includes('api_call') || normalized.includes('latency') || normalized.includes('weather')) return { group: 'sync', status: 'info', label: 'SYNC' }
+  if (normalized.includes('store_mutation') || normalized.includes('district') || normalized.includes('cache') || normalized.includes('data')) return { group: 'data', status: 'ok', label: 'DATA' }
+  return { group: 'all', status: 'ok', label: 'SYSTEM' }
+}
+
+const formatEventAgo = (timestamp) => {
+  const delta = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+  if (delta < 5) return lang.value === 'en' ? 'just now' : 'ahora'
+  if (delta < 60) return lang.value === 'en' ? `${delta}s ago` : `hace ${delta}s`
+  const min = Math.floor(delta / 60)
+  return lang.value === 'en' ? `${min}m ago` : `hace ${min}m`
+}
+
+const filteredConsoleEvents = computed(() => {
+  return activeConsoleStream.value
+    .map((entry) => {
+      const line = typeof entry === 'string' ? entry : entry.line
+      const ts = typeof entry === 'string' ? Date.now() : entry.ts
+      const meta = classifyConsoleEntry(line)
+      return { line, ts, ...meta }
+    })
+    .filter((entry) => {
+      if (consoleFilter.value === 'all') return true
+      return entry.group === consoleFilter.value
+    })
+    .slice(-12)
+})
+
+const clearConsole = () => {
+  if (consoleMode.value === 'business') {
+    businessStream.value = []
+    return
+  }
+  technicalStream.value = []
+}
+
+const copyConsole = async () => {
+  const payload = filteredConsoleEvents.value.map((entry) => `${entry.label} · ${entry.line}`).join('\n')
+  if (!payload) return
+  try {
+    await navigator.clipboard.writeText(payload)
+  } catch {
+    // ignore clipboard errors in unsupported contexts
+  }
+}
 
 const resolveBehaviorNarrationKey = () => {
   if (systemState.value === 'syncing') return 'syncing'
@@ -740,6 +950,62 @@ const onConsoleTouchEnd = () => {
   mobileSheetStartY.value = null
 }
 
+const stopRewindInterval = () => {
+  if (rewindInterval) {
+    clearInterval(rewindInterval)
+    rewindInterval = null
+  }
+}
+
+const clearEndpointHold = () => {
+  if (endpointHoldTimeout) {
+    clearTimeout(endpointHoldTimeout)
+    endpointHoldTimeout = null
+  }
+}
+
+const startReversePlayback = () => {
+  const video = backgroundVideoRef.value
+  if (!video) return
+  if (rewindInterval) return
+
+  video.pause()
+  rewindInterval = setInterval(() => {
+    const current = video.currentTime
+    if (current <= 0.05) {
+      video.currentTime = 0
+      stopRewindInterval()
+      videoDirection.value = 1
+      clearEndpointHold()
+      endpointHoldTimeout = setTimeout(() => {
+        video.play().catch(() => {})
+        endpointHoldTimeout = null
+      }, 140)
+      return
+    }
+    video.currentTime = Math.max(0, current - 0.033)
+  }, 33)
+}
+
+const handlePingPongVideo = () => {
+  const video = backgroundVideoRef.value
+  if (!video) return
+  if (videoDirection.value === -1) return
+  const duration = Number(video.duration)
+  if (!Number.isFinite(duration) || duration <= 0) return
+  const endTime = Math.max(0, duration - 0.05)
+  if (video.currentTime >= endTime) {
+    video.currentTime = endTime
+    videoDirection.value = -1
+    video.pause()
+    clearEndpointHold()
+    endpointHoldTimeout = setTimeout(() => {
+      startReversePlayback()
+      endpointHoldTimeout = null
+    }, 140)
+  }
+}
+
 watch(adaptiveState, (state) => {
   adaptiveVars.value = state.cssVars
 }, { immediate: true })
@@ -782,6 +1048,10 @@ watch(lang, () => {
   pushTechnicalLog('[STORE_MUTATION] locale updated')
 })
 
+watch(hardSkillGroups, () => {
+  initializeSkillSections()
+}, { immediate: true })
+
 onMounted(() => {
   reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   lastInteractionAt.value = Date.now()
@@ -810,6 +1080,13 @@ onMounted(() => {
   window.addEventListener('wheel', handleViewportInteraction, { passive: true })
   window.addEventListener('keydown', handleViewportInteraction)
   runLogSequence(['[COMPONENT_MOUNT] WorkstationHub mounted', ...t.value.logs.initial], null, t.value.businessLogs.initial)
+  if (backgroundVideoRef.value) {
+    stopRewindInterval()
+    clearEndpointHold()
+    videoDirection.value = 1
+    backgroundVideoRef.value.currentTime = 0
+    backgroundVideoRef.value.play().catch(() => {})
+  }
   const firstVisitTimer = setTimeout(() => {
     pushNarratorMessage('first-visit', t.value.narrator.firstVisit, 'business', 30000)
   }, 900)
@@ -817,6 +1094,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopRewindInterval()
+  clearEndpointHold()
   cancelAnimationFrame(frame)
   clearLogTimers()
   clearSensorTimers()
@@ -834,83 +1113,37 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative min-h-screen overflow-hidden" :style="styleVars">
+  <div class="forest-window relative min-h-screen overflow-hidden" :style="styleVars">
     <div class="absolute inset-0 z-0" aria-hidden="true">
-      <img
-        :src="forestCityBokeh"
-        alt=""
+      <video
+        ref="backgroundVideoRef"
+        src="/Cámara_Estática_Punto_de_Vista_Fijo.mp4"
         class="weather-bg fixed inset-0 h-full w-full object-cover"
-        :style="{ transform: 'translate3d(var(--bgx), var(--bgy), 0)' }"
+        :style="{ transform: 'translate3d(var(--bgx), var(--bgy), 0) scale(var(--bgzoom))' }"
+        muted
+        autoplay
+        playsinline
+        preload="auto"
+        @timeupdate="handlePingPongVideo"
       />
     </div>
 
     <div class="weather-tone absolute inset-0 z-10" aria-hidden="true" />
-    <div class="weather-atmosphere absolute inset-0 z-[10]" :class="`weather-atmosphere--${weatherMode}`" aria-hidden="true" />
+    <div class="weather-atmosphere absolute inset-0 z-[10]" :class="`weather-atmosphere--${weatherMode}`"
+      aria-hidden="true" />
     <div class="weather-clouds absolute inset-0 z-[11]" aria-hidden="true" />
     <div class="weather-rain absolute inset-0 z-[12]" aria-hidden="true" />
+    <div class="window-grain absolute inset-0 z-[14]" aria-hidden="true" />
 
     <div class="relative z-20 flex min-h-screen items-center justify-center overflow-hidden p-4 sm:p-6">
-      <section
-        ref="rootRef"
-        class="workstation relative isolate h-[95vh] w-[80vw] max-h-[980px] max-w-[1680px] overflow-hidden rounded-3xl text-slate-900"
-        @mousemove="onPointerMove"
-        @mouseleave="onPointerLeave"
-      >
+      <section ref="rootRef"
+        class="workstation relative isolate h-[95vh] w-[90vw] max-h-[980px] max-w-[1680px] overflow-hidden rounded-3xl text-slate-900"
+        @mousemove="onPointerMove" @mouseleave="onPointerLeave">
         <div class="ui-layer relative z-20 flex h-full w-full flex-col overflow-hidden p-4 sm:p-6">
-          <header
-            data-panel
-            class="status-bar metal-panel mb-4 grid gap-3 rounded-xl px-4 py-3 text-[12px] font-medium tracking-[0.08em] text-slate-800 lg:grid-cols-[1.1fr_1fr_1.2fr]"
-          >
-            <div class="status-loc inline-flex items-center gap-2 font-mono">
-              <Waves :size="14" class="text-emerald-600" />
-              <span class="status-desktop-copy">LOC: {{ locationLabel }}</span>
-              <span class="status-mobile-copy">LOC: {{ compactLocationLabel }}</span>
-            </div>
-
-            <div class="status-env space-y-2">
-              <div class="inline-flex items-center gap-2 font-mono"><Leaf :size="14" class="text-emerald-600" /> ENV: {{ envLabel }}</div>
-              <div class="life-widget">
-                <span class="life-label">{{ t.humidity }} {{ humidityLevel }}%</span>
-                <div class="life-track">
-                  <span class="life-fill" :style="{ width: `${humidityLevel}%` }" />
-                </div>
-              </div>
-              <div class="life-widget">
-                <span class="life-label">{{ t.oxygen }}: {{ oxygenLabelText }}</span>
-                <div class="life-track">
-                  <span class="life-fill oxygen" :style="{ width: `${oxygenLevel}%` }" />
-                </div>
-              </div>
-            </div>
-
-            <div class="status-cluster flex items-center justify-between gap-3 lg:justify-end">
-              <div class="space-y-2">
-                <div class="inline-flex items-center gap-2 font-mono">
-                  <Activity :size="14" class="text-emerald-600" />
-                  <span class="status-desktop-copy">{{ t.systemLabel }}: {{ t.latency }} {{ latencyMs }}ms | {{ t.optimization }}: {{ optimizationLabel }}</span>
-                  <span class="status-mobile-copy">{{ latencyMs }}ms | {{ envLabel }}</span>
-                </div>
-                <div class="status-meta">
-                  <span class="status-chip" :class="statusToneClass(systemState)">
-                    <span class="status-chip__label">SYSTEM_STATE</span>
-                    <span>{{ systemStateLabel }}</span>
-                  </span>
-                  <span class="status-chip" :class="statusToneClass(userMode)">
-                    <span class="status-chip__label">USER_MODE</span>
-                    <span>{{ userModeLabel }}</span>
-                  </span>
-                </div>
-                <div class="status-mobile-state">
-                  <span class="status-mobile-state__dot" :class="`is-${statusToneClass(systemState)}`" />
-                  <span>{{ mobileStateLabel }}</span>
-                </div>
-              </div>
-              <div class="inline-flex items-center gap-1 rounded-lg border border-slate-300/80 bg-white/70 p-1 status-language">
-                <span class="px-1.5 text-[10px] uppercase tracking-[0.12em] text-slate-500">{{ t.language }}</span>
-                <button class="lang-btn" :class="{ active: lang === 'es' }" @click="lang = 'es'">{{ t.spanish }}</button>
-                <button class="lang-btn" :class="{ active: lang === 'en' }" @click="lang = 'en'">{{ t.english }}</button>
-              </div>
-            </div>
+          <header data-panel class="status-bar glass-card sticky top-0 z-30 mb-4">
+            <WorkstationTelemetryBar :telemetry="telemetryData" :health="healthData" :latency-series="latencySeries"
+              :weather="weatherData" :location="locationData" :permissions-state="permissionsState"
+              @update:lang="lang = $event" />
           </header>
 
           <div class="mobile-ops-bar" data-panel>
@@ -919,13 +1152,9 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="grid min-h-0 flex-1 grid-cols-12 gap-4 overflow-hidden">
-            <main
-              ref="mainPanelRef"
-              data-panel
-              class="metal-panel command-core kernel-scroll relative col-span-12 flex min-h-0 flex-col overflow-x-hidden overflow-y-auto rounded-2xl bg-white/90 p-6 backdrop-blur-xl sm:p-8 lg:col-span-9"
-              :class="{ 'system-syncing': syncPulse }"
-              @scroll="updateScrollDepth"
-            >
+            <main ref="mainPanelRef" data-panel
+              class="metal-panel glass-card command-core kernel-scroll relative col-span-12 flex min-h-0 flex-col overflow-x-hidden overflow-y-auto rounded-2xl bg-white/90 p-6 backdrop-blur-xl sm:p-8 lg:col-span-9"
+              :class="{ 'system-syncing': syncPulse }" @scroll="updateScrollDepth">
               <div class="palm-shadow-layer" aria-hidden="true">
                 <svg viewBox="0 0 1200 380" preserveAspectRatio="none">
                   <defs>
@@ -934,8 +1163,12 @@ onBeforeUnmount(() => {
                       <stop offset="100%" stop-color="rgba(15, 23, 42, 0.04)" />
                     </linearGradient>
                   </defs>
-                  <path d="M-40 25C140 95 270 20 460 120C650 220 810 95 1030 170C1130 205 1190 195 1260 230L1260 0L-40 0Z" fill="url(#palmShade)" />
-                  <path d="M-20 130C120 180 260 120 370 190C520 285 690 180 860 240C980 285 1120 265 1240 320L1240 20C1030 10 910 45 780 85C610 140 450 65 280 95C170 115 70 140 -20 130Z" fill="url(#palmShade)" opacity="0.62" />
+                  <path
+                    d="M-40 25C140 95 270 20 460 120C650 220 810 95 1030 170C1130 205 1190 195 1260 230L1260 0L-40 0Z"
+                    fill="url(#palmShade)" />
+                  <path
+                    d="M-20 130C120 180 260 120 370 190C520 285 690 180 860 240C980 285 1120 265 1240 320L1240 20C1030 10 910 45 780 85C610 140 450 65 280 95C170 115 70 140 -20 130Z"
+                    fill="url(#palmShade)" opacity="0.62" />
                 </svg>
               </div>
 
@@ -960,7 +1193,8 @@ onBeforeUnmount(() => {
 
               <Transition name="kernel-fade" mode="out-in">
                 <div v-if="vistaActiva === 'PERFIL'" key="perfil-view">
-                  <h1 class="font-[Inter] text-[clamp(2rem,4vw,3.8rem)] font-extrabold tracking-[-0.03em] text-slate-900">
+                  <h1
+                    class="font-[Inter] text-[clamp(2rem,4vw,3.8rem)] font-extrabold tracking-[-0.03em] text-slate-900">
                     {{ t.profileTitle }}
                   </h1>
                   <p class="mt-5 max-w-[72ch] font-[Inter] text-[1rem] leading-relaxed text-slate-800">
@@ -974,65 +1208,79 @@ onBeforeUnmount(() => {
                   </p>
 
                   <div class="mt-7">
-                    <button class="switch-btn execute-btn" :disabled="enTransicion" @click="irAProyectos">{{ t.goProjects }}</button>
+                    <button class="switch-btn execute-btn" :disabled="enTransicion" @click="irAProyectos">{{
+                      t.goProjects }}</button>
                   </div>
                 </div>
 
                 <div v-else key="projects-view">
                   <div class="mb-3 flex items-center justify-between gap-3">
                     <h2 class="font-[Inter] text-3xl font-bold text-slate-900">{{ t.projectsTitle }}</h2>
-                    <button class="switch-btn btn-secondary" :disabled="enTransicion" @click="volverAlPerfil">{{ t.backProfile }}</button>
+                    <button class="switch-btn btn-secondary" :disabled="enTransicion" @click="volverAlPerfil">{{
+                      t.backProfile }}</button>
                   </div>
                   <p class="mt-1 font-[Inter] text-slate-700">{{ t.projectsIntro }}</p>
-                  <ProjectModule :lang="lang" @open-demo="abrirDemo" />
+                  <div class="projects-scroll mt-4">
+                    <ProjectModule :lang="lang" @open-demo="abrirDemo" />
+                  </div>
                 </div>
               </Transition>
             </main>
 
-            <aside
-              data-panel
-              class="mobile-drawer metal-panel rack-scroll col-span-12 min-h-0 overflow-y-auto rounded-2xl bg-white/40 p-4 backdrop-blur-xl lg:col-span-3"
-              :class="{ 'mobile-drawer--open': mobileDrawerOpen }"
-            >
-              <div class="mobile-drawer-head">
-                <p class="font-mono text-[11px] uppercase tracking-[0.14em] text-slate-500">{{ t.mobileArchitecture }}</p>
-                <button class="console-collapse" @click="mobileDrawerOpen = false">{{ t.consoleCollapse }}</button>
-              </div>
-              <p class="mb-3 font-mono text-[12px] uppercase tracking-[0.18em] text-slate-900">{{ panelHeading }}</p>
+            <aside data-panel
+              class="mobile-drawer metal-panel glass-card rack-scroll col-span-12 min-h-0 overflow-y-auto rounded-2xl bg-white/40 p-4 lg:col-span-3"
+              :class="{ 'mobile-drawer--open': mobileDrawerOpen }">
+              <article class="rack-block rounded-lg border border-slate-300/80 bg-slate-100/70 p-3">
+                <p class="font-mono text-[11px] uppercase tracking-[0.12em] text-slate-900">
+                  {{ lang === 'es' ? 'Proyectos en porfolio-hub' : 'Projects in porfolio-hub' }}
+                </p>
+                <p class="mt-1 text-xs text-slate-600">
+                  {{ repoProjects.length }} {{ lang === 'es' ? 'proyectos detectados' : 'projects detected' }}
+                </p>
+                <div class="mt-3 space-y-2">
+                  <div v-for="project in repoProjects" :key="project.path"
+                    class="rounded-md border border-slate-300/70 bg-white/65 px-2 py-1.5">
+                    <p class="text-xs font-semibold text-slate-900">{{ project.name }}</p>
+                    <p class="font-mono text-[10px] text-slate-600">{{ project.path }}</p>
+                  </div>
+                </div>
+              </article>
 
-              <article
-                v-for="group in hardSkillGroups"
-                :key="group.title"
+              <p class="mb-3 mt-3 font-mono text-[12px] uppercase tracking-[0.18em] text-slate-900">{{ panelHeading }}</p>
+
+              <article v-for="group in hardSkillGroups" :key="group.title"
                 class="rack-block mt-3 rounded-lg border bg-slate-100/70 p-3 first:mt-0"
-                :class="group.highlight ? 'border-emerald-300/90 ring-1 ring-emerald-200/70' : 'border-slate-300/80'"
-              >
-                <h3 class="font-mono text-[11px] uppercase tracking-[0.12em] text-slate-900">{{ group.title }}</h3>
-                <div class="mt-2 flex flex-wrap gap-2">
-                  <span
-                    v-for="skill in group.items"
-                    :key="skill"
-                    class="rack-badge"
-                    :class="badgeContextClass(skill)"
-                  >
+                :class="group.highlight ? 'border-emerald-300/90 ring-1 ring-emerald-200/70' : 'border-slate-300/80'">
+                <button type="button"
+                  class="flex w-full items-center justify-between font-mono text-[11px] uppercase tracking-[0.12em] text-slate-900"
+                  @click="toggleSkillSection(group.title)">
+                  <span>{{ group.title }}</span>
+                  <span>{{ openSkillSections[group.title] ? '−' : '+' }}</span>
+                </button>
+                <div v-if="openSkillSections[group.title]" class="mt-2 flex flex-wrap gap-2">
+                  <span v-for="skill in group.items" :key="skill" class="rack-badge" :class="badgeContextClass(skill)">
                     <span class="status-dot" />
                     {{ skill }}
                   </span>
                 </div>
               </article>
 
-              <article v-if="proyectoActivo" class="rack-block rack-block--district mt-3 rounded-lg border border-emerald-300/80 bg-emerald-50/65 p-3">
+              <article v-if="proyectoActivo"
+                class="rack-block rack-block--district mt-3 rounded-lg border border-emerald-300/80 bg-emerald-50/65 p-3">
                 <p class="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-900/80">
                   {{ lang === 'en' ? 'Active District' : 'Distrito Activo' }}
                 </p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">{{ proyectoActivo.name }}</p>
-                <p class="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-emerald-800/75">{{ t.districtRole }}</p>
+                <p class="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-emerald-800/75">{{ t.districtRole
+                  }}</p>
                 <p class="mt-1 text-sm text-slate-800">{{ districtRoleLabel }}</p>
                 <p class="mt-1 text-sm leading-relaxed text-slate-700">{{ proyectoActivo.impact }}</p>
               </article>
 
               <button class="cv-btn mt-4 w-full">{{ t.downloadCv }}</button>
 
-              <article v-if="!isMobileViewport" class="rack-block mt-3 rounded-lg border border-slate-300/80 bg-slate-100/70 p-3">
+              <article v-if="!isMobileViewport"
+                class="rack-block mt-3 rounded-lg border border-slate-300/80 bg-slate-100/70 p-3">
                 <h3 class="font-mono text-[11px] uppercase tracking-[0.12em] text-slate-900">{{ t.workStyle }}</h3>
                 <ul class="mt-3 space-y-3 leading-relaxed">
                   <li v-for="attr in engineeringAttributes" :key="attr.title" class="text-sm text-slate-900">
@@ -1044,26 +1292,45 @@ onBeforeUnmount(() => {
             </aside>
           </div>
 
-          <footer
-            data-panel
-            class="metal-panel console-shell mt-4 rounded-xl bg-white/88 px-4 py-3 backdrop-blur-xl"
+          <footer data-panel
+            class="metal-panel glass-card console-shell console-drawer mt-4 rounded-xl bg-white/88 px-4 py-3 backdrop-blur-xl"
             :class="{ 'console-shell--collapsed': consoleCollapsed, 'mobile-console-sheet': isMobileViewport, 'mobile-console-sheet--open': mobileConsoleOpen }"
             :style="isMobileViewport ? { '--mobile-sheet-drag': `${mobileSheetDragY}px` } : undefined"
-            @touchstart.passive="onConsoleTouchStart"
-            @touchmove.passive="onConsoleTouchMove"
-            @touchend="onConsoleTouchEnd"
-          >
+            @touchstart.passive="onConsoleTouchStart" @touchmove.passive="onConsoleTouchMove"
+            @touchend="onConsoleTouchEnd">
             <div class="console-head">
               <div class="console-title-wrap">
                 <span class="mobile-sheet-handle" />
                 <p class="font-mono text-[11px] uppercase tracking-[0.2em] text-slate-500">{{ t.activityStream }}</p>
+                <span class="console-live-pill">{{ t.consoleLive }} · {{ liveEventsCount }} {{ t.consoleEvents }}</span>
               </div>
               <div class="console-controls">
-                <button class="console-toggle" :class="{ active: consoleMode === 'business' }" @click="consoleMode = 'business'">
+                <button class="console-toggle" :class="{ active: consoleMode === 'business' }"
+                  @click="consoleMode = 'business'">
                   {{ t.consoleBusiness }}
                 </button>
-                <button v-if="!isMobileViewport" class="console-toggle" :class="{ active: consoleMode === 'experimental' }" @click="consoleMode = 'experimental'">
+                <button v-if="!isMobileViewport" class="console-toggle"
+                  :class="{ active: consoleMode === 'experimental' }" @click="consoleMode = 'experimental'">
                   {{ t.consoleExperimental }}
+                </button>
+                <div class="console-filter-group">
+                  <button class="console-filter-btn" :class="{ active: consoleFilter === 'all' }"
+                    @click="consoleFilter = 'all'">{{ t.consoleFilterAll }}</button>
+                  <button class="console-filter-btn" :class="{ active: consoleFilter === 'sync' }"
+                    @click="consoleFilter = 'sync'">{{ t.consoleFilterSync }}</button>
+                  <button class="console-filter-btn" :class="{ active: consoleFilter === 'network' }"
+                    @click="consoleFilter = 'network'">{{ t.consoleFilterNetwork }}</button>
+                  <button class="console-filter-btn" :class="{ active: consoleFilter === 'data' }"
+                    @click="consoleFilter = 'data'">{{ t.consoleFilterData }}</button>
+                </div>
+                <button class="console-collapse" @click="consolePaused = !consolePaused">
+                  {{ consolePaused ? t.consoleResume : t.consolePause }}
+                </button>
+                <button class="console-collapse" @click="clearConsole">
+                  {{ t.consoleClear }}
+                </button>
+                <button class="console-collapse" @click="copyConsole">
+                  {{ t.consoleCopy }}
                 </button>
                 <button class="console-collapse" @click="consoleCollapsed = !consoleCollapsed">
                   {{ consoleCollapsed ? t.consoleExpand : t.consoleCollapse }}
@@ -1076,9 +1343,16 @@ onBeforeUnmount(() => {
 
             <Transition name="console-drop">
               <div v-if="!consoleCollapsed" class="console-body">
-                <div class="space-y-1 font-mono text-[12px]" :class="consoleMode === 'business' ? 'text-slate-700' : 'text-slate-600'">
-                  <p v-for="(line, index) in activeConsoleStream" :key="`${consoleMode}-${index}-${line}`">{{ line }}</p>
-                  <p class="inline-flex items-center gap-1 text-slate-500">{{ consoleAwaitingLabel }} <span class="cursor-block">_</span></p>
+                <div class="space-y-1 font-mono text-[12px]"
+                  :class="consoleMode === 'business' ? 'text-slate-700' : 'text-slate-600'">
+                  <div v-for="(event, index) in filteredConsoleEvents" :key="`${consoleMode}-${index}-${event.ts}`"
+                    class="console-event-item">
+                    <span class="console-event-chip" :class="`is-${event.status}`">{{ event.label }}</span>
+                    <span class="console-event-line">{{ event.line }}</span>
+                    <span class="console-event-time">{{ formatEventAgo(event.ts) }}</span>
+                  </div>
+                  <p class="inline-flex items-center gap-1 text-slate-500">{{ consoleAwaitingLabel }} <span
+                      class="cursor-block">_</span></p>
                 </div>
               </div>
             </Transition>
@@ -1091,21 +1365,12 @@ onBeforeUnmount(() => {
     </div>
 
     <Transition name="mobile-fade">
-      <button
-        v-if="isMobileViewport && mobileDrawerOpen"
-        class="mobile-overlay"
-        aria-label="Close stack drawer"
-        @click="mobileDrawerOpen = false"
-      />
+      <button v-if="isMobileViewport && mobileDrawerOpen" class="mobile-overlay" aria-label="Close stack drawer"
+        @click="mobileDrawerOpen = false" />
     </Transition>
 
-    <ProjectViewer
-      :visible="viewerAbierto"
-      :project="proyectoActivo"
-      :lang="lang"
-      @close="cerrarDemo"
-      @log="agregarLog"
-    />
+    <ProjectViewer :visible="viewerAbierto" :project="proyectoActivo" :lang="lang" @close="cerrarDemo"
+      @log="agregarLog" />
   </div>
 </template>
 
@@ -1116,21 +1381,47 @@ onBeforeUnmount(() => {
   font-family: Inter, sans-serif;
 }
 
+.forest-window::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 700px at 20% 15%, rgba(255, 255, 255, 0.55), transparent 55%),
+    radial-gradient(900px 600px at 70% 80%, rgba(255, 255, 255, 0.25), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.1));
+}
+
+.forest-window::after {
+  content: '';
+  position: absolute;
+  inset: 14px;
+  z-index: 13;
+  border-radius: 18px;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    inset 0 0 0 10px rgba(10, 15, 20, 0.1),
+    0 20px 60px rgba(0, 0, 0, 0.18);
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.1), transparent 35%),
+    linear-gradient(25deg, transparent 55%, rgba(255, 255, 255, 0.1) 70%, transparent 100%);
+}
+
 .ui-layer {
   transform: translate3d(calc(var(--mx) * 0.04), calc(var(--my) * 0.04), 0);
   transition: transform 0.18s ease-out;
 }
 
 .weather-bg {
-  filter: brightness(var(--env-bg-brightness)) saturate(var(--env-bg-saturate)) contrast(var(--env-bg-contrast)) var(--env-scene-blur);
+  filter: brightness(var(--env-bg-brightness)) saturate(var(--env-bg-saturate)) contrast(var(--env-bg-contrast));
   transition: filter var(--env-ui-transition) ease, transform 240ms ease-out;
 }
 
 .weather-tone {
   background: linear-gradient(to bottom right, var(--env-tone), transparent 72%);
-  backdrop-filter: var(--env-scene-blur);
-  -webkit-backdrop-filter: var(--env-scene-blur);
-  transition: background var(--env-ui-transition) ease, backdrop-filter var(--env-ui-transition) ease, -webkit-backdrop-filter var(--env-ui-transition) ease;
+  transition: background var(--env-ui-transition) ease;
 }
 
 .weather-atmosphere {
@@ -1156,104 +1447,13 @@ onBeforeUnmount(() => {
     radial-gradient(900px 260px at 30% 10%, rgba(51, 65, 85, 0.24), transparent 62%);
 }
 
-.lang-btn {
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  line-height: 1;
-  color: #475569;
-  background: transparent;
-}
-
-.lang-btn.active {
-  color: #0f172a;
-  border-color: rgba(148, 163, 184, 0.7);
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.status-mobile-copy,
-.mobile-ops-bar,
-.status-mobile-state {
+.mobile-ops-bar {
   display: none;
 }
 
-.status-cluster {
-  min-width: 0;
-}
-
-.status-meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 999px;
-  background: color-mix(in srgb, rgba(255, 255, 255, 0.56) 82%, var(--sys-surface-tint) 18%);
-  color: #334155;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  padding: 5px 9px;
-  transition: background-color var(--sys-transition) ease, border-color var(--sys-transition) ease, color var(--sys-transition) ease;
-}
-
-.status-chip__label {
-  color: #64748b;
-}
-
-.status-chip.is-stable {
-  border-color: rgba(110, 231, 183, 0.38);
-  background: rgba(236, 253, 245, 0.72);
-  color: #166534;
-}
-
-.status-chip.is-shifting {
-  border-color: rgba(148, 163, 184, 0.42);
-  background: rgba(248, 250, 252, 0.7);
-  color: #334155;
-}
-
-.status-chip.is-busy {
-  border-color: rgba(125, 211, 252, 0.42);
-  background: rgba(240, 249, 255, 0.74);
-  color: #0f766e;
-}
-
-.status-mobile-state {
-  align-items: center;
-  gap: 8px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: #475569;
-}
-
-.status-mobile-state__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.7);
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.36);
-}
-
-.status-mobile-state__dot.is-is-stable {
-  background: rgba(16, 185, 129, 0.78);
-}
-
-.status-mobile-state__dot.is-is-shifting {
-  background: rgba(100, 116, 139, 0.72);
-}
-
-.status-mobile-state__dot.is-is-busy {
-  background: rgba(14, 165, 233, 0.76);
+.status-bar {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .weather-clouds {
@@ -1268,11 +1468,9 @@ onBeforeUnmount(() => {
 }
 
 .weather-rain {
-  background-image: repeating-linear-gradient(
-    -12deg,
-    rgba(148, 163, 184, 0.24) 0 2px,
-    rgba(148, 163, 184, 0) 2px 16px
-  );
+  background-image: repeating-linear-gradient(-12deg,
+      rgba(148, 163, 184, 0.24) 0 2px,
+      rgba(148, 163, 184, 0) 2px 16px);
   background-size: 100% 140%;
   opacity: var(--env-rain-opacity);
   animation: rainDrop var(--env-rain-duration) linear infinite;
@@ -1281,50 +1479,59 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-.life-widget {
-  display: grid;
-  grid-template-columns: 116px 1fr;
-  gap: 8px;
-  align-items: center;
-}
-
-.life-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: #334155;
-}
-
-.life-track {
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.3);
-  overflow: hidden;
-}
-
-.life-fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.8), rgba(16, 185, 129, 0.46));
-  clip-path: polygon(0 42%, 7% 28%, 14% 54%, 22% 32%, 30% 62%, 38% 36%, 47% 60%, 55% 41%, 64% 66%, 72% 45%, 81% 57%, 90% 38%, 100% 50%, 100% 100%, 0 100%);
-}
-
-.life-fill.oxygen {
-  background: linear-gradient(90deg, rgba(5, 150, 105, 0.8), rgba(16, 185, 129, 0.5));
+.window-grain {
+  pointer-events: none;
+  opacity: 0.02;
+  mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(15, 23, 42, 0.6) 0 0.7px, transparent 0.8px),
+    radial-gradient(circle at 80% 60%, rgba(15, 23, 42, 0.5) 0 0.7px, transparent 0.8px);
+  background-size: 3px 3px, 4px 4px;
 }
 
 .metal-panel {
   border: 1px solid transparent;
   background:
-    linear-gradient(
-      color-mix(in srgb, rgba(248, 250, 252, 0.9) 88%, var(--sys-surface-tint) 12%),
-      color-mix(in srgb, rgba(241, 245, 249, 0.82) 88%, var(--sys-surface-tint) 12%)
-    ) padding-box,
+    linear-gradient(color-mix(in srgb, rgba(248, 250, 252, 0.9) 88%, var(--sys-surface-tint) 12%),
+      color-mix(in srgb, rgba(241, 245, 249, 0.82) 88%, var(--sys-surface-tint) 12%)) padding-box,
     linear-gradient(135deg, rgba(148, 163, 184, 0.95), color-mix(in srgb, rgba(255, 255, 255, 0.96) 84%, var(--sys-accent) 16%)) border-box;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
     0 20px 34px rgba(15, 23, 42, 0.18);
   transition: background var(--sys-transition) ease, box-shadow var(--sys-transition) ease;
+}
+
+.glass-card {
+
+  background: rgba(157, 157, 157, 0);
+  border-radius: 16px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(7.9px);
+  -webkit-backdrop-filter: blur(7.9px);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  pointer-events: none;
+}
+
+.glass-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), transparent, rgba(255, 255, 255, 0.3));
+  pointer-events: none;
 }
 
 .command-core {
@@ -1351,6 +1558,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.console-drawer {
+  position: sticky;
+  bottom: 0;
+  z-index: 18;
+}
+
 .console-head {
   display: flex;
   align-items: center;
@@ -1362,6 +1575,17 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.console-live-pill {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .mobile-sheet-handle {
@@ -1377,6 +1601,33 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.console-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.console-filter-btn {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  background: transparent;
+}
+
+.console-filter-btn.active {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: rgba(248, 250, 252, 0.95);
+  color: #0f172a;
 }
 
 .console-toggle,
@@ -1400,6 +1651,72 @@ onBeforeUnmount(() => {
 
 .console-body {
   margin-top: 10px;
+  max-height: 124px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+}
+
+.console-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.console-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.console-body::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 999px;
+}
+
+.console-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.45);
+}
+
+.console-event-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.console-event-chip {
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 3px 7px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.console-event-chip.is-ok {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(236, 253, 245, 0.7);
+  color: #065f46;
+}
+
+.console-event-chip.is-warn {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(255, 247, 237, 0.8);
+  color: #92400e;
+}
+
+.console-event-chip.is-info {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(240, 249, 255, 0.75);
+  color: #0c4a6e;
+}
+
+.console-event-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.console-event-time {
+  font-size: 10px;
+  color: #94a3b8;
 }
 
 .console-collapsed-hint {
@@ -1551,6 +1868,32 @@ onBeforeUnmount(() => {
 
 .kernel-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.38);
+}
+
+.projects-scroll {
+  max-height: calc(100vh - 360px);
+  min-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.28) transparent;
+}
+
+.projects-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.projects-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.projects-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.26);
+  border-radius: 999px;
+}
+
+.projects-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.42);
 }
 
 .rack-scroll {
@@ -1730,12 +2073,10 @@ onBeforeUnmount(() => {
   width: 52%;
   height: 320%;
   transform: rotate(18deg);
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(16, 185, 129, 0.45) 52%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(16, 185, 129, 0.45) 52%,
+      rgba(255, 255, 255, 0) 100%);
   opacity: 0;
   pointer-events: none;
 }
@@ -1757,6 +2098,7 @@ onBeforeUnmount(() => {
 }
 
 @keyframes blink {
+
   0%,
   50% {
     opacity: 1;
@@ -1856,38 +2198,6 @@ onBeforeUnmount(() => {
     border-radius: 0;
   }
 
-  .status-bar {
-    grid-template-columns: 1fr auto;
-    align-items: start;
-  }
-
-  .status-env {
-    display: none;
-  }
-
-  .status-cluster {
-    align-items: flex-start;
-  }
-
-  .status-meta,
-  .status-mobile-state,
-  .status-language .px-1\.5 {
-    display: none;
-  }
-
-  .status-desktop-copy {
-    display: none;
-  }
-
-  .status-mobile-copy {
-    display: inline;
-  }
-
-  .status-mobile-state {
-    display: inline-flex;
-    margin-top: 6px;
-  }
-
   .district-entry-meta {
     grid-template-columns: 1fr;
   }
@@ -1924,23 +2234,16 @@ onBeforeUnmount(() => {
     opacity: 1;
   }
 
-  .mobile-drawer-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-
   .mobile-console-sheet {
     position: fixed;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
+    left: 8px;
+    right: 8px;
+    top: 12px;
+    bottom: 8px;
     z-index: 72;
     margin-top: 0;
     border-radius: 20px;
-    transform: translateY(calc(100% - 54px + var(--mobile-sheet-drag, 0px)));
+    transform: translateY(calc(100% - 56px + var(--mobile-sheet-drag, 0px)));
     transition: transform 320ms ease, box-shadow 320ms ease;
     box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
     touch-action: pan-y;
@@ -1952,6 +2255,13 @@ onBeforeUnmount(() => {
 
   .mobile-console-sheet--open {
     transform: translateY(var(--mobile-sheet-drag, 0px));
+  }
+
+  .projects-scroll {
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .console-head {
@@ -1967,14 +2277,6 @@ onBeforeUnmount(() => {
   .console-controls .console-toggle,
   .console-controls .console-collapse {
     padding: 5px 9px;
-  }
-
-  .status-cluster {
-    flex-wrap: wrap;
-  }
-
-  .status-meta {
-    justify-content: flex-start;
   }
 
   .mobile-sheet-handle {

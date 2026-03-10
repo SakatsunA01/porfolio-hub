@@ -241,8 +241,12 @@ test_url "https://apiecommerce.labarcaministerio.com/api/store/products" "200"
 test_url "https://apiecommerce.labarcaministerio.com/api/store/settings" "200"
 test_url "https://shop.labarcaministerio.com/" "200"
 test_url "https://shop.labarcaministerio.com/catalog" "200"
+test_url "https://apidelivery.labarcaministerio.com/api/health" "200"
+test_url "https://delivery.labarcaministerio.com/" "200"
+test_url "https://apidunamis.labarcaministerio.com/api/health" "200"
+test_url "https://dunamis.labarcaministerio.com/login" "200"
+test_url "https://dunamis.labarcaministerio.com/dashboard" "200"
 
 rm -f "$LOCK_FILE"
 log "Deploy completado correctamente."
 log "Log: $LOG_FILE"
-

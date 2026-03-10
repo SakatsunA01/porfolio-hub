@@ -13,7 +13,7 @@ const emit = defineEmits(['close', 'log'])
 const checking = ref(false)
 const checkMessage = ref('')
 const infoMessage = ref('')
-const showTechOverlay = ref(false)
+const showContextOverlay = ref(false)
 
 const frameUrl = computed(() => props.project?.demoUrl || '')
 const canEmbed = computed(() => props.project?.allowEmbed !== false)
@@ -80,7 +80,7 @@ watch(
   () => [props.visible, frameUrl.value],
   () => {
     if (!props.visible) {
-      showTechOverlay.value = false
+      showContextOverlay.value = false
     }
     runAvailabilityCheck()
   },
@@ -91,8 +91,8 @@ const openExternal = () => {
   window.open(frameUrl.value, '_blank', 'noopener,noreferrer')
 }
 
-const toggleTechOverlay = () => {
-  showTechOverlay.value = !showTechOverlay.value
+const toggleContextOverlay = () => {
+  showContextOverlay.value = !showContextOverlay.value
 }
 </script>
 
@@ -104,10 +104,13 @@ const toggleTechOverlay = () => {
           <div>
             <p class="font-mono text-[11px] uppercase tracking-[0.14em] text-emerald-200">SYNC_STATUS: OK</p>
             <h3 class="font-[Inter] text-lg font-semibold text-white">{{ project?.name || 'Project Viewer' }}</h3>
-            <p class="font-mono text-[11px] text-emerald-100/90">{{ isEnglish ? 'FLOW: IMPACT -> DEMO -> TECHNICAL' : 'FLUJO: IMPACTO -> DEMO -> TECNICA' }}</p>
+            <p class="font-mono text-[11px] text-emerald-100/90">{{ isEnglish ? 'FLOW: CONTEXT -> DEMO' : 'FLUJO: CONTEXTO -> DEMO' }}</p>
           </div>
 
           <div class="flex items-center gap-2">
+            <button class="viewer-btn" @click="toggleContextOverlay">
+              {{ showContextOverlay ? (isEnglish ? 'Hide context' : 'Ocultar contexto') : (isEnglish ? 'View project context' : 'Ver contexto del proyecto') }}
+            </button>
             <button class="viewer-btn" @click="openExternal">
               <ExternalLink :size="14" /> {{ isEnglish ? 'Open External' : 'Abrir Externo' }}
             </button>
@@ -119,43 +122,11 @@ const toggleTechOverlay = () => {
 
         <div class="viewer-frame-wrap relative min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200/40 bg-white/10">
           <div class="viewer-content">
-            <section class="viewer-block viewer-block--metrics">
-              <div class="viewer-block-head">
-                <p class="viewer-section-label">{{ isEnglish ? 'IMPACT METRICS' : 'METRICAS DE IMPACTO' }}</p>
-                <p class="viewer-summary-title">{{ project?.name }}</p>
-              </div>
-              <div class="viewer-metrics-grid">
-                <article v-for="metric in impactMetrics" :key="`${metric.label}-${metric.value}`" class="viewer-metric-card">
-                  <p class="viewer-metric-value">{{ metric.value }}</p>
-                  <p class="viewer-metric-label">{{ metric.label }}</p>
-                  <p class="viewer-metric-detail">{{ metric.detail }}</p>
-                </article>
-              </div>
-            </section>
-
-            <section class="viewer-block">
-              <p class="viewer-section-label">{{ isEnglish ? 'BUSINESS VALUE' : 'VALOR DE NEGOCIO' }}</p>
-              <p class="viewer-summary-text viewer-summary-text--lead">{{ project?.impact }}</p>
-              <ul v-if="impactSummary.length" class="viewer-summary-list">
-                <li v-for="(item, index) in impactSummary" :key="`${index}-${item}`" class="viewer-summary-item">
-                  {{ item }}
-                </li>
-              </ul>
-            </section>
-
             <section class="viewer-block viewer-block--demo">
               <div class="viewer-demo-head">
                 <div>
                   <p class="viewer-section-label">{{ isEnglish ? 'DEMO SECTION' : 'SECCION DEMO' }}</p>
-                  <p class="viewer-demo-text">
-                    {{ isEnglish
-                      ? 'See the interaction flow after understanding the outcome it is designed to improve.'
-                      : 'Visualiza el flujo despues de entender el resultado que busca mejorar.' }}
-                  </p>
                 </div>
-                <button class="viewer-btn" @click="toggleTechOverlay">
-                  {{ showTechOverlay ? (isEnglish ? 'Hide technical details' : 'Ocultar detalles tecnicos') : (isEnglish ? 'View technical details' : 'Ver detalles tecnicos') }}
-                </button>
               </div>
               <div class="viewer-demo-surface">
                 <div
@@ -182,26 +153,54 @@ const toggleTechOverlay = () => {
                     {{ isEnglish ? 'Demo not available yet. External access will be enabled when ready.' : 'La demo aun no esta disponible. El acceso externo se habilitara cuando este lista.' }}
                   </p>
                 </div>
+
+                <Transition name="tech-expand">
+                  <section v-if="showContextOverlay" class="viewer-curtain">
+                    <div class="viewer-context-stack">
+                      <section class="viewer-block viewer-block--metrics">
+                        <div class="viewer-block-head">
+                          <p class="viewer-section-label">{{ isEnglish ? 'IMPACT METRICS' : 'METRICAS DE IMPACTO' }}</p>
+                          <p class="viewer-summary-title">{{ project?.name }}</p>
+                        </div>
+                        <div class="viewer-metrics-grid">
+                          <article v-for="metric in impactMetrics" :key="`${metric.label}-${metric.value}`" class="viewer-metric-card">
+                            <p class="viewer-metric-value">{{ metric.value }}</p>
+                            <p class="viewer-metric-label">{{ metric.label }}</p>
+                            <p class="viewer-metric-detail">{{ metric.detail }}</p>
+                          </article>
+                        </div>
+                      </section>
+
+                      <section class="viewer-block">
+                        <p class="viewer-section-label">{{ isEnglish ? 'BUSINESS VALUE' : 'VALOR DE NEGOCIO' }}</p>
+                        <p class="viewer-summary-text viewer-summary-text--lead">{{ project?.impact }}</p>
+                        <ul v-if="impactSummary.length" class="viewer-summary-list">
+                          <li v-for="(item, index) in impactSummary" :key="`${index}-${item}`" class="viewer-summary-item">
+                            {{ item }}
+                          </li>
+                        </ul>
+                      </section>
+
+                      <section class="viewer-block viewer-block--technical">
+                        <p class="viewer-section-label">{{ isEnglish ? 'TECHNICAL DETAILS' : 'DETALLES TECNICOS' }}</p>
+                        <p class="viewer-summary-title">{{ project?.name }}</p>
+
+                        <div class="viewer-tech-tags">
+                          <span v-for="tag in (project?.stack || [])" :key="tag" class="viewer-tech-tag">{{ tag }}</span>
+                        </div>
+
+                        <ul v-if="technicalDetails.length" class="viewer-summary-list viewer-summary-list--technical">
+                          <li v-for="(item, index) in technicalDetails" :key="`${index}-${item}`" class="viewer-summary-item">
+                            {{ item }}
+                          </li>
+                        </ul>
+                        <p v-else class="viewer-summary-text">{{ project?.techSummary || project?.impact }}</p>
+                      </section>
+                    </div>
+                  </section>
+                </Transition>
               </div>
             </section>
-
-            <Transition name="tech-expand">
-              <section v-if="showTechOverlay" class="viewer-block viewer-block--technical">
-                <p class="viewer-section-label">{{ isEnglish ? 'TECHNICAL DETAILS' : 'DETALLES TECNICOS' }}</p>
-                <p class="viewer-summary-title">{{ project?.name }}</p>
-
-                <div class="viewer-tech-tags">
-                  <span v-for="tag in (project?.stack || [])" :key="tag" class="viewer-tech-tag">{{ tag }}</span>
-                </div>
-
-                <ul v-if="technicalDetails.length" class="viewer-summary-list viewer-summary-list--technical">
-                  <li v-for="(item, index) in technicalDetails" :key="`${index}-${item}`" class="viewer-summary-item">
-                    {{ item }}
-                  </li>
-                </ul>
-                <p v-else class="viewer-summary-text">{{ project?.techSummary || project?.impact }}</p>
-              </section>
-            </Transition>
           </div>
 
           <div class="scanlines" aria-hidden="true" />
@@ -239,10 +238,17 @@ const toggleTechOverlay = () => {
 .viewer-content {
   position: relative;
   z-index: 2;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  min-height: 100%;
   padding: 12px;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.38), rgba(15, 23, 42, 0.12));
+}
+
+.viewer-context-stack {
+  display: grid;
+  gap: 12px;
 }
 
 .viewer-block {
@@ -394,8 +400,11 @@ const toggleTechOverlay = () => {
 }
 
 .viewer-demo-surface {
+  position: relative;
   margin-top: 14px;
-  min-height: 420px;
+  display: flex;
+  flex: 1;
+  min-height: clamp(420px, 62vh, 900px);
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 14px;
@@ -405,7 +414,8 @@ const toggleTechOverlay = () => {
 .viewer-iframe {
   display: block;
   width: 100%;
-  min-height: 420px;
+  height: 100%;
+  min-height: inherit;
   border: 0;
   background: #0f172a;
 }
@@ -419,6 +429,17 @@ const toggleTechOverlay = () => {
   gap: 14px;
   padding: 24px;
   text-align: center;
+}
+
+.viewer-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: auto;
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.52), rgba(15, 23, 42, 0.62));
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
 }
 
 .viewer-btn {
@@ -491,6 +512,12 @@ const toggleTechOverlay = () => {
 
 .viewer-block--technical {
   background: rgba(15, 23, 42, 0.22);
+}
+
+.viewer-block--demo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
 }
 
 .viewer-summary-list--technical {
