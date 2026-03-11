@@ -24,7 +24,6 @@ class AuthController extends ApiController
         }
 
         $request->session()->regenerate();
-        $request->user()->loadMissing();
 
         return $this->success(new AuthUserResource($request->user()));
     }
