@@ -38,7 +38,7 @@ const consoleFilter = ref('all')
 const isMobileViewport = ref(false)
 const mobileDrawerOpen = ref(false)
 const mobileConsoleOpen = ref(false)
-const lang = ref('es')
+const lang = ref('en')
 const fallbackCoords = { latitude: -34.6037, longitude: -58.3816 }
 const fallbackLocation = '34.6037deg S, 58.3816deg W (Buenos Aires Centro)'
 const currentCoords = ref({ ...fallbackCoords })
@@ -79,9 +79,12 @@ const i18n = {
     latency: 'Latencia',
     optimization: 'Optimizacion',
     profileTitle: 'Sergio Quinteros | 28 años, Argentina',
-    profileP1: 'Ayudo a empresas a ordenar sus procesos con herramientas digitales claras, rapidas y faciles de usar.',
-    profileP2: 'Tengo 3 años de experiencia construyendo soluciones web. En Rusoft logre reducir en un 50% los tiempos de respuesta de sistemas criticos, mejorando la experiencia diaria de los equipos.',
-    profileP3: 'Mi enfoque combina funcionalidad real con una interfaz moderna: software que rinde bien y se entiende rapido.',
+    profileSubtitle: 'Full-Stack Architect & Product Strategist',
+    profileP1: 'Ayudo a empresas a transformar procesos caoticos en herramientas digitales de alto rendimiento: claras, rapidas y, sobre todo, escalables.',
+    profileP2: 'Con 3 años de experiencia construyendo soluciones robustas, mi enfoque se centra en la interseccion de la ingenieria solida y el diseño de vanguardia. En Rusoft, logre reducir en un 50% los tiempos de respuesta de sistemas criticos, optimizando no solo el software, sino la experiencia diaria de los equipos de trabajo.',
+    profileP3: 'Actualmente, estoy volcando toda esa experiencia en el desarrollo de Axis Tech, un SaaS integral de pedidos y delivery donde la integridad de los datos y la fluidez de la interfaz convergen. Mi stack principal —Laravel 10, Vue.js 3 y MySQL— es la base sobre la cual construyo software que no solo rinde bajo presion, sino que se entiende a primera vista.',
+    profileP4: 'Mi filosofia de trabajo, el "Sergio Standard", se inspira en la precision tecnica y la estetica minimalista de marcas globales. Creo interfaces bajo el concepto de Ceramic Glassmorphism y entornos biofilicos, buscando que la tecnologia se sienta tan natural y organica como un bosque, pero tan potente como un motor Chevrolet bien afinado.',
+    profileP5: 'Para mi, el codigo es un puente entre mundos: desde la logica pura del back-end hasta la exploracion de mundos ancestrales y magicos a traves del diseño. No busco solo "picar" codigo; busco crear productos con proposito que eleven el estandar de lo que una herramienta digital puede lograr.',
     goProjects: 'EJECUTAR: VER_PROYECTOS',
     projectsTitle: 'Proyectos y Demos',
     backProfile: '< VOLVER_AL_PERFIL',
@@ -168,9 +171,12 @@ const i18n = {
     latency: 'Latency',
     optimization: 'Optimization',
     profileTitle: 'Sergio Quinteros | 28 years old, Argentina',
-    profileP1: 'I help companies organize their processes with clear, fast and easy-to-use digital tools.',
-    profileP2: 'I have 3 years of experience building web solutions. At Rusoft, I reduced critical system response times by 50%, improving day-to-day team operations.',
-    profileP3: 'My approach combines real functionality with modern interfaces: software that performs well and is easy to understand.',
+    profileSubtitle: 'Full-Stack Architect & Product Strategist',
+    profileP1: 'I help companies transform chaotic processes into high-performance digital tools: clear, fast, and above all, scalable.',
+    profileP2: 'With 3 years of experience building robust solutions, my focus sits at the intersection of solid engineering and forward-looking design. At Rusoft, I reduced critical system response times by 50%, optimizing not only the software but also the daily working experience of teams.',
+    profileP3: 'I am currently channeling that experience into Axis Tech, a full SaaS platform for orders and delivery where data integrity and interface fluidity converge. My core stack —Laravel 10, Vue.js 3, and MySQL— is the foundation I use to build software that performs under pressure and remains intuitive at first glance.',
+    profileP4: 'My working philosophy, the "Sergio Standard", is inspired by technical precision and the minimalist aesthetics of global brands. I design interfaces under Ceramic Glassmorphism and biophilic environments, aiming for technology that feels as natural and organic as a forest, yet as powerful as a finely tuned Chevrolet engine.',
+    profileP5: 'For me, code is a bridge between worlds: from pure back-end logic to the exploration of ancestral and magical worlds through design. I do not aim to just "ship code"; I build purposeful products that raise the standard of what a digital tool can achieve.',
     goProjects: 'RUN: VIEW_PROJECTS',
     projectsTitle: 'Projects and Demos',
     backProfile: '< BACK_TO_PROFILE',
@@ -320,29 +326,6 @@ const engineeringAttributes = computed(() => (lang.value === 'es'
     { title: 'Precision', detail: 'I work carefully on details to prevent errors and rework.' },
       { title: 'Adaptability', detail: 'I adapt quickly to change and continuously learn new tools.' },
     ]))
-
-const repoProjects = computed(() => ([
-  {
-    name: 'Portfolio Home',
-    path: 'portfolio-home',
-    type: lang.value === 'es' ? 'Landing' : 'Landing',
-  },
-  {
-    name: 'Sak Commerce',
-    path: 'apps-demos/ecommerce',
-    type: lang.value === 'es' ? 'E-commerce' : 'E-commerce',
-  },
-  {
-    name: 'Dunamis SaaS',
-    path: 'apps-demos/dunamis-saas',
-    type: 'SaaS',
-  },
-  {
-    name: 'Delivery App',
-    path: 'apps-demos/delivery-app',
-    type: lang.value === 'es' ? 'Logistica' : 'Logistics',
-  },
-]))
 
 let frame = 0
 let reducedMotion = false
@@ -1117,7 +1100,7 @@ onBeforeUnmount(() => {
     <div class="absolute inset-0 z-0" aria-hidden="true">
       <video
         ref="backgroundVideoRef"
-        src="/Cámara_Estática_Punto_de_Vista_Fijo.mp4"
+        src="/Video Project 1.mp4"
         class="weather-bg fixed inset-0 h-full w-full object-cover"
         :style="{ transform: 'translate3d(var(--bgx), var(--bgy), 0) scale(var(--bgzoom))' }"
         muted
@@ -1192,19 +1175,29 @@ onBeforeUnmount(() => {
               </Transition>
 
               <Transition name="kernel-fade" mode="out-in">
-                <div v-if="vistaActiva === 'PERFIL'" key="perfil-view">
+                <div v-if="vistaActiva === 'PERFIL'" key="perfil-view"
+                  class="profile-scroll flex h-full min-h-0 flex-col pr-1 pb-4">
                   <h1
                     class="font-[Inter] text-[clamp(2rem,4vw,3.8rem)] font-extrabold tracking-[-0.03em] text-slate-900">
                     {{ t.profileTitle }}
                   </h1>
-                  <p class="mt-5 max-w-[72ch] font-[Inter] text-[1rem] leading-relaxed text-slate-800">
+                  <p class="mt-2 w-full font-[Inter] text-[1.02rem] font-semibold leading-relaxed text-slate-900/90">
+                    {{ t.profileSubtitle }}
+                  </p>
+                  <p class="mt-5 w-full text-justify font-[Inter] text-[1rem] leading-relaxed text-slate-800">
                     {{ t.profileP1 }}
                   </p>
-                  <p class="mt-4 max-w-[72ch] font-[Inter] text-[1rem] leading-relaxed text-slate-800">
+                  <p class="mt-4 w-full text-justify font-[Inter] text-[1rem] leading-relaxed text-slate-800">
                     {{ t.profileP2 }}
                   </p>
-                  <p class="mt-4 max-w-[72ch] font-[Inter] text-[1rem] leading-relaxed text-slate-800">
+                  <p class="mt-4 w-full text-justify font-[Inter] text-[1rem] leading-relaxed text-slate-800">
                     {{ t.profileP3 }}
+                  </p>
+                  <p class="mt-4 w-full text-left font-[Inter] text-[1rem] leading-relaxed text-slate-800">
+                    {{ t.profileP4 }}
+                  </p>
+                  <p class="mt-4 w-full text-left font-[Inter] text-[1rem] leading-relaxed text-slate-800">
+                    {{ t.profileP5 }}
                   </p>
 
                   <div class="mt-7">
@@ -1213,14 +1206,14 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
 
-                <div v-else key="projects-view">
+                <div v-else key="projects-view" class="flex h-full min-h-0 flex-col">
                   <div class="mb-3 flex items-center justify-between gap-3">
                     <h2 class="font-[Inter] text-3xl font-bold text-slate-900">{{ t.projectsTitle }}</h2>
                     <button class="switch-btn btn-secondary" :disabled="enTransicion" @click="volverAlPerfil">{{
                       t.backProfile }}</button>
                   </div>
                   <p class="mt-1 font-[Inter] text-slate-700">{{ t.projectsIntro }}</p>
-                  <div class="projects-scroll mt-4">
+                  <div class="projects-scroll mt-4 min-h-0 flex-1">
                     <ProjectModule :lang="lang" @open-demo="abrirDemo" />
                   </div>
                 </div>
@@ -1228,25 +1221,10 @@ onBeforeUnmount(() => {
             </main>
 
             <aside data-panel
-              class="mobile-drawer metal-panel glass-card rack-scroll col-span-12 min-h-0 overflow-y-auto rounded-2xl bg-white/40 p-4 lg:col-span-3"
+              class="mobile-drawer metal-panel glass-card col-span-12 flex min-h-0 flex-col rounded-2xl bg-white/40 p-4 lg:col-span-3"
               :class="{ 'mobile-drawer--open': mobileDrawerOpen }">
-              <article class="rack-block rounded-lg border border-slate-300/80 bg-slate-100/70 p-3">
-                <p class="font-mono text-[11px] uppercase tracking-[0.12em] text-slate-900">
-                  {{ lang === 'es' ? 'Proyectos en porfolio-hub' : 'Projects in porfolio-hub' }}
-                </p>
-                <p class="mt-1 text-xs text-slate-600">
-                  {{ repoProjects.length }} {{ lang === 'es' ? 'proyectos detectados' : 'projects detected' }}
-                </p>
-                <div class="mt-3 space-y-2">
-                  <div v-for="project in repoProjects" :key="project.path"
-                    class="rounded-md border border-slate-300/70 bg-white/65 px-2 py-1.5">
-                    <p class="text-xs font-semibold text-slate-900">{{ project.name }}</p>
-                    <p class="font-mono text-[10px] text-slate-600">{{ project.path }}</p>
-                  </div>
-                </div>
-              </article>
-
-              <p class="mb-3 mt-3 font-mono text-[12px] uppercase tracking-[0.18em] text-slate-900">{{ panelHeading }}</p>
+              <div class="stack-scroll mt-3 pr-1">
+                <p class="mb-3 font-mono text-[12px] uppercase tracking-[0.18em] text-slate-900">{{ panelHeading }}</p>
 
               <article v-for="group in hardSkillGroups" :key="group.title"
                 class="rack-block mt-3 rounded-lg border bg-slate-100/70 p-3 first:mt-0"
@@ -1279,21 +1257,22 @@ onBeforeUnmount(() => {
 
               <button class="cv-btn mt-4 w-full">{{ t.downloadCv }}</button>
 
-              <article v-if="!isMobileViewport"
-                class="rack-block mt-3 rounded-lg border border-slate-300/80 bg-slate-100/70 p-3">
-                <h3 class="font-mono text-[11px] uppercase tracking-[0.12em] text-slate-900">{{ t.workStyle }}</h3>
-                <ul class="mt-3 space-y-3 leading-relaxed">
-                  <li v-for="attr in engineeringAttributes" :key="attr.title" class="text-sm text-slate-900">
-                    <span class="font-semibold">{{ attr.title }}:</span>
-                    <span class="text-slate-800"> {{ attr.detail }}</span>
-                  </li>
-                </ul>
-              </article>
+                <article v-if="!isMobileViewport"
+                  class="rack-block mt-3 rounded-lg border border-slate-300/80 bg-slate-100/70 p-3">
+                  <h3 class="font-mono text-[11px] uppercase tracking-[0.12em] text-slate-900">{{ t.workStyle }}</h3>
+                  <ul class="mt-3 space-y-3 leading-relaxed">
+                    <li v-for="attr in engineeringAttributes" :key="attr.title" class="text-sm text-slate-900">
+                      <span class="font-semibold">{{ attr.title }}:</span>
+                      <span class="text-slate-800"> {{ attr.detail }}</span>
+                    </li>
+                  </ul>
+                </article>
+              </div>
             </aside>
           </div>
 
           <footer data-panel
-            class="metal-panel glass-card console-shell console-drawer mt-4 rounded-xl bg-white/88 px-4 py-3 backdrop-blur-xl"
+            class="console-shell console-drawer mt-4 rounded-2xl border border-white/25 bg-white/55 px-4 py-3 backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,.12)]"
             :class="{ 'console-shell--collapsed': consoleCollapsed, 'mobile-console-sheet': isMobileViewport, 'mobile-console-sheet--open': mobileConsoleOpen }"
             :style="isMobileViewport ? { '--mobile-sheet-drag': `${mobileSheetDragY}px` } : undefined"
             @touchstart.passive="onConsoleTouchStart" @touchmove.passive="onConsoleTouchMove"
@@ -1870,10 +1849,39 @@ onBeforeUnmount(() => {
   background: rgba(100, 116, 139, 0.38);
 }
 
-.projects-scroll {
-  max-height: calc(100vh - 360px);
-  min-height: 260px;
+.profile-scroll {
+  flex: 1 1 auto;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+}
+
+.profile-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.profile-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.profile-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 999px;
+}
+
+.profile-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.45);
+}
+
+.projects-scroll {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 4px;
   scrollbar-width: thin;
   scrollbar-color: rgba(100, 116, 139, 0.28) transparent;
@@ -1915,6 +1923,31 @@ onBeforeUnmount(() => {
 }
 
 .rack-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.42);
+}
+
+.stack-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.28) transparent;
+}
+
+.stack-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.stack-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.stack-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.26);
+  border-radius: 999px;
+}
+
+.stack-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.42);
 }
 
@@ -2257,9 +2290,19 @@ onBeforeUnmount(() => {
     transform: translateY(var(--mobile-sheet-drag, 0px));
   }
 
+  .stack-scroll {
+    overflow: visible;
+    flex: initial;
+  }
+
   .projects-scroll {
-    max-height: none;
     min-height: 0;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .profile-scroll {
+    max-height: none;
     overflow: visible;
     padding-right: 0;
   }

@@ -120,7 +120,7 @@ const toggleContextOverlay = () => {
           </div>
         </header>
 
-        <div class="viewer-frame-wrap relative min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200/40 bg-white/10">
+        <div class="viewer-frame-wrap relative min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200/40 bg-white/10">
           <div class="viewer-content">
             <section class="viewer-block viewer-block--demo">
               <div class="viewer-demo-head">
@@ -241,7 +241,8 @@ const toggleContextOverlay = () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   padding: 12px;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.38), rgba(15, 23, 42, 0.12));
 }
@@ -404,7 +405,8 @@ const toggleContextOverlay = () => {
   margin-top: 14px;
   display: flex;
   flex: 1;
-  min-height: clamp(420px, 62vh, 900px);
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 14px;
@@ -415,7 +417,7 @@ const toggleContextOverlay = () => {
   display: block;
   width: 100%;
   height: 100%;
-  min-height: inherit;
+  min-height: 0;
   border: 0;
   background: #0f172a;
 }
@@ -517,6 +519,7 @@ const toggleContextOverlay = () => {
 .viewer-block--demo {
   display: flex;
   flex: 1;
+  min-height: 0;
   flex-direction: column;
 }
 

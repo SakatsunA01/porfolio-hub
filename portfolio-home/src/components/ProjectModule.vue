@@ -1,10 +1,10 @@
 ﻿<script setup>
 import { computed } from 'vue'
 import { ExternalLink, Github } from 'lucide-vue-next'
-import sakCommerceCover from '../assets/images/Sak-Commerce.png'
+import sakCommerceCover from '../assets/images/a7feb066-c0cb-4d80-adc3-7dee88ea1aeb.png'
 import dunamisCover from '../assets/images/Dunamis SaaS.png'
-import deliveryCover from '../assets/images/Delivery App.png'
-import laBarcaCover from '../assets/images/labarca.png'
+import deliveryCover from '../assets/images/ChatGPT Image 10 mar 2026, 09_29_41 p.m..png'
+import laBarcaCover from '../assets/images/ChatGPT Image 10 mar 2026, 09_24_10 p.m..png'
 
 const resolveDemoUrl = (envValue, productionFallback, localFallback) => {
   if (typeof envValue === 'string' && envValue.trim()) return envValue.trim()
