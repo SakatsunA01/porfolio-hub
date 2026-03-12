@@ -4,4 +4,16 @@ import vue from '@vitejs/plugin-vue'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  build: {
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vue: ['vue'],
+          motion: ['motion'],
+          icons: ['lucide-vue-next'],
+        },
+      },
+    },
+  },
 })

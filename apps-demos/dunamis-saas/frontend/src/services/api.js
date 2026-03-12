@@ -26,7 +26,7 @@ export const healthCheck = () => sanctum.get('/api/health')
 
 export const authApi = {
   login: (payload) => api.post('/auth/login', payload, { withXSRFToken: true }),
-  me: () => api.get('/auth/me', { withXSRFToken: false }),
+  me: () => sanctum.get('/api/user', { withXSRFToken: false }),
   logout: () => api.post('/auth/logout', {}, { withXSRFToken: true }),
 }
 

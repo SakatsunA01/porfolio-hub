@@ -7,6 +7,18 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vue: ['vue', 'vue-router', 'pinia'],
+          firebase: ['firebase'],
+          icons: ['lucide-vue-next'],
+        },
+      },
+    },
+  },
   plugins: [
     vue(),
     vueDevTools(),

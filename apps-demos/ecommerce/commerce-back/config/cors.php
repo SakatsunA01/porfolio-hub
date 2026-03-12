@@ -17,17 +17,20 @@ return [
 
     'paths' => ['api/*', 'login', 'logout', 'register', 'sanctum/csrf-cookie'],
 
-    'allowed_methods' => ['*'],
+    'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
-    'allowed_origins' => array_values(array_filter([
-        env('FRONTEND_URL'),
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-    ])),
+    'allowed_origins' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+        'CORS_ALLOWED_ORIGINS',
+        implode(',', array_filter([
+            env('FRONTEND_URL'),
+            'http://localhost:5173',
+            'http://127.0.0.1:5173',
+        ]))
+    ))))),
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['*'],
+    'allowed_headers' => ['Accept', 'Authorization', 'Content-Type', 'Origin', 'X-Requested-With', 'X-XSRF-TOKEN', 'X-CSRF-TOKEN', 'X-Request-Id', 'X-Tenant-Slug'],
 
     'exposed_headers' => [],
 

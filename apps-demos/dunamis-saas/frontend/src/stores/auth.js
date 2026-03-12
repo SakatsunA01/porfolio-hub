@@ -14,14 +14,16 @@ const setUser = (user) => {
 const fetchUser = async () => {
   try {
     const { data } = await authApi.me()
-    setUser(data.data)
-    return data.data
+    const user = data?.data ?? data ?? null
+    setUser(user)
+    return user
   } catch (error) {
     setUser(null)
-    if (error?.response?.status === 401) {
+    const status = error?.response?.status
+    if (status === 401 || status === 404) {
       return null
     }
-    throw error
+    return null
   } finally {
     state.initialized = true
   }

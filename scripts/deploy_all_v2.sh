@@ -12,6 +12,7 @@ REPO_DIR="${REPO_DIR:-$USER_HOME/repos/porfolio-hub}"
 REPO_URL="${REPO_URL:-https://github.com/SakatsunA01/porfolio-hub.git}"
 BRANCH="${BRANCH:-main}"
 SKIP_BUILD="${SKIP_BUILD:-0}" # set SKIP_BUILD=1 to skip npm build on server
+SMOKE_MAX_TIME="${SMOKE_MAX_TIME:-1.5}" # seconds, threshold per request
 
 LOCK_FILE="$USER_HOME/deploy_all_v2.lock"
 TS="$(date +%F_%H-%M-%S)"
@@ -58,6 +59,16 @@ PHP
 
     RewriteRule ^ index.php [L]
 </IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain text/html text/xml text/css application/javascript application/json image/svg+xml
+</IfModule>
 HT
 }
 
@@ -74,6 +85,31 @@ ensure_front_spa_htaccess() {
     RewriteRule ^ - [L]
 
     RewriteRule . /index.html [L]
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType application/json "access plus 0 seconds"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(js|css|png|jpg|jpeg|webp|svg|woff2?)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    <FilesMatch "\.(html)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain text/html text/xml text/css application/javascript application/json image/svg+xml
 </IfModule>
 HT
 }
@@ -228,15 +264,24 @@ test_url() {
   local url="$1"
   local expected="$2"
   local code
-  code="$(curl -s -o /dev/null -w "%{http_code}" "$url")"
+  local total_time
+  local payload
+  payload="$(curl -s -o /dev/null -w "%{http_code} %{time_total}" "$url")"
+  code="$(echo "$payload" | awk '{print $1}')"
+  total_time="$(echo "$payload" | awk '{print $2}')"
   if [[ "$code" != "$expected" ]]; then
     log "ERROR smoke: $url -> $code (esperado $expected)"
     exit 1
   fi
-  log "OK smoke: $url -> $code"
+  if awk "BEGIN {exit !($total_time > $SMOKE_MAX_TIME)}"; then
+    log "ERROR smoke-latency: $url -> ${total_time}s (max ${SMOKE_MAX_TIME}s)"
+    exit 1
+  fi
+  log "OK smoke: $url -> $code (${total_time}s)"
 }
 
 test_url "https://apiecommerce.labarcaministerio.com/sanctum/csrf-cookie" "204"
+test_url "https://apiecommerce.labarcaministerio.com/api/health" "200"
 test_url "https://apiecommerce.labarcaministerio.com/api/store/products" "200"
 test_url "https://apiecommerce.labarcaministerio.com/api/store/settings" "200"
 test_url "https://shop.labarcaministerio.com/" "200"

@@ -24,19 +24,26 @@ use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 |
 */
 
-Route::post('/register', [RegisteredUserController::class, 'store']);
-Route::post('/login', [AuthenticatedSessionController::class, 'store']);
+Route::post('/register', [RegisteredUserController::class, 'store'])->middleware('throttle:auth-login');
+Route::post('/login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:auth-login');
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->middleware('auth:sanctum');
-Route::post('/webhooks/mercado-pago', MercadoPagoWebhookController::class);
+Route::post('/webhooks/mercado-pago', MercadoPagoWebhookController::class)->middleware('throttle:mp-webhook');
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'service' => 'commerce-backend',
+        'timestamp' => now()->toIso8601String(),
+    ]);
+});
 Route::get('/store/products', [StorefrontCatalogController::class, 'index']);
 Route::get('/store/products/{product}', [StorefrontCatalogController::class, 'show']);
 Route::get('/store/categories', [StorefrontCatalogController::class, 'categories']);
 Route::get('/store/settings', [StorefrontCatalogController::class, 'settings']);
 Route::get('/store/search', [StorefrontCatalogController::class, 'search']);
 Route::get('/store/social-proof', [StorefrontCatalogController::class, 'socialProof']);
-Route::post('/orders/preview', [StorefrontOrderController::class, 'preview']);
-Route::post('/orders/address-validate', [StorefrontOrderController::class, 'validateAddress']);
-Route::post('/orders', [StorefrontOrderController::class, 'store']);
+Route::post('/orders/preview', [StorefrontOrderController::class, 'preview'])->middleware('throttle:checkout');
+Route::post('/orders/address-validate', [StorefrontOrderController::class, 'validateAddress'])->middleware('throttle:checkout');
+Route::post('/orders', [StorefrontOrderController::class, 'store'])->middleware('throttle:checkout');
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -48,7 +55,7 @@ Route::middleware('auth:sanctum')->prefix('account')->group(function () {
     Route::put('/profile', [AccountController::class, 'updateProfile']);
 });
 
-Route::middleware(['auth:sanctum', 'admin'])
+Route::middleware(['auth:sanctum', 'admin', 'throttle:admin-write'])
     ->prefix('admin')
     ->group(function () {
         Route::get('/dashboard', AdminDashboardController::class);

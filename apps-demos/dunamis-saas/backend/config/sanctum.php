@@ -15,11 +15,11 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
+    'stateful' => array_values(array_filter(array_map('trim', explode(',', (string) env('SANCTUM_STATEFUL_DOMAINS', sprintf(
         '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
+        'localhost,localhost:5175,127.0.0.1,127.0.0.1:5175,127.0.0.1:8000,dunamis.labarcaministerio.com,::1,',
         Sanctum::currentApplicationUrlWithPort()
-    ))),
+    )))))),
 
     /*
     |--------------------------------------------------------------------------

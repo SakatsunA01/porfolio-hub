@@ -32,8 +32,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
-Route::post('/auth/login', [AuthController::class, 'login']);
-Route::post('/auth/google', [AuthController::class, 'googleLogin']);
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth-login');
+Route::post('/auth/google', [AuthController::class, 'googleLogin'])->middleware('throttle:auth-login');
 
 Route::get('/health', function () {
     return response()->json([
@@ -55,7 +55,7 @@ Route::get('/extras', [ExtraController::class, 'index']);
 Route::get('/daily-menus/active', [DailyMenuController::class, 'active']);
 Route::get('/roles', [RoleController::class, 'index']);
 
-Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'role:admin', 'throttle:admin-write'])->group(function () {
     Route::post('/products', [ProductController::class, 'store']);
     Route::post('/products/bulk/price', [ProductController::class, 'bulkUpdatePrices']);
     Route::put('/products/{product}', [ProductController::class, 'update']);
@@ -106,7 +106,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::put('/tenant-settings', [TenantSettingsController::class, 'update']);
 });
 
-Route::middleware(['auth:sanctum', 'role:superadmin'])->prefix('superadmin')->group(function () {
+Route::middleware(['auth:sanctum', 'role:superadmin', 'throttle:admin-write'])->prefix('superadmin')->group(function () {
     Route::get('/tenants', [SuperAdminController::class, 'tenants']);
     Route::post('/tenants', [SuperAdminController::class, 'storeTenant']);
     Route::put('/tenants/{tenant}', [SuperAdminController::class, 'updateTenant']);
@@ -120,7 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/client/profile', [CustomerProfileController::class, 'self'])->middleware('role:client');
     Route::put('/client/profile', [CustomerProfileController::class, 'updateSelf'])->middleware('role:client');
-    Route::post('/orders', [OrderController::class, 'store'])->middleware('role:client,admin');
+    Route::post('/orders', [OrderController::class, 'store'])->middleware(['role:client,admin', 'throttle:order-create']);
     Route::get('/orders', [OrderController::class, 'index']);
     Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus'])->middleware('role:admin,employee,driver');
 });

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://dunamis.labarcaministerio.com/sitemap.xml

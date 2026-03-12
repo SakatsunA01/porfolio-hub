@@ -53,3 +53,22 @@
 
 - TODO: estandarizar contrato de tenant context entre apps.
 - TODO: definir estrategia de tenant provisioning automatizado.
+
+## 7. Tenant context contract (implemented baseline)
+
+Request precedence:
+
+1. Header `X-Tenant-Slug` over query `tenant_slug`.
+2. Header `X-Organization-Id` over query `organization_id`.
+3. Header `X-Commerce-Id` over query `commerce_id`.
+
+Normalized request attributes set by middleware:
+
+- `tenant_slug`
+- `organization_id`
+- `commerce_id`
+
+Notes:
+
+- Middleware is now applied to API groups in ecommerce, dunamis, and delivery backends.
+- Existing controller rules remain source of truth for authorization and business scope checks.

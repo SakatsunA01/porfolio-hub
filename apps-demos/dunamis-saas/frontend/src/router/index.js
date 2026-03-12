@@ -29,6 +29,33 @@ const router = createRouter({
   },
 })
 
+const SEO_ORIGIN = (import.meta.env.VITE_CANONICAL_ORIGIN || 'https://dunamis.labarcaministerio.com').replace(/\/$/, '')
+
+const applySeoMeta = (to) => {
+  const routeTitles = {
+    login: 'Login | Dunamis SaaS',
+    health: 'Health | Dunamis SaaS',
+    dashboard: 'Dashboard | Dunamis SaaS',
+    products: 'Products | Dunamis SaaS',
+    clients: 'Clients | Dunamis SaaS',
+    sales: 'Sales | Dunamis SaaS',
+    reports: 'Reports | Dunamis SaaS',
+    profile: 'Profile | Dunamis SaaS',
+  }
+
+  const routeName = String(to.name || '')
+  document.title = routeTitles[routeName] || 'Dunamis SaaS | Commercial Operations'
+
+  const canonicalHref = `${SEO_ORIGIN}${to.fullPath || '/'}`
+  let canonical = document.querySelector('link[rel=\"canonical\"]')
+  if (!canonical) {
+    canonical = document.createElement('link')
+    canonical.rel = 'canonical'
+    document.head.appendChild(canonical)
+  }
+  canonical.href = canonicalHref
+}
+
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   try {
@@ -49,6 +76,7 @@ router.beforeEach(async (to) => {
     return '/dashboard'
   }
 
+  applySeoMeta(to)
   return true
 })
 

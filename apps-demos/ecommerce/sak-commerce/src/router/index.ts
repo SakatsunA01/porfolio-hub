@@ -73,6 +73,46 @@ const router = createRouter({
   ],
 })
 
+const SEO_ORIGIN = (import.meta.env.VITE_CANONICAL_ORIGIN || 'https://shop.labarcaministerio.com').replace(/\/$/, '')
+
+const applySeoMeta = (to: any) => {
+  const titleByRoute: Record<string, string> = {
+    home: 'Axis Tech | Premium Ecommerce',
+    catalog: 'Catalog | Axis Tech',
+    category: 'Category | Axis Tech',
+    'product-detail': 'Product Detail | Axis Tech',
+    about: 'About | Axis Tech',
+    contact: 'Contact | Axis Tech',
+    press: 'Press | Axis Tech',
+    privacy: 'Privacy Policy | Axis Tech',
+    terms: 'Terms | Axis Tech',
+    login: 'Login | Axis Tech',
+    register: 'Register | Axis Tech',
+    cart: 'Cart | Axis Tech',
+    favorites: 'Favorites | Axis Tech',
+    checkout: 'Checkout | Axis Tech',
+    'order-success': 'Order Success | Axis Tech',
+    account: 'My Account | Axis Tech',
+    'account-order-detail': 'Order Detail | Axis Tech',
+    'admin-dashboard': 'Admin Dashboard | Axis Tech',
+    'admin-products': 'Admin Products | Axis Tech',
+    'admin-orders': 'Admin Orders | Axis Tech',
+    'admin-settings': 'Admin Settings | Axis Tech',
+  }
+
+  const routeName = String(to.name || '')
+  document.title = titleByRoute[routeName] || 'Axis Tech | Premium Ecommerce'
+
+  const canonicalHref = `${SEO_ORIGIN}${to.fullPath || '/'}`
+  let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+  if (!canonical) {
+    canonical = document.createElement('link')
+    canonical.rel = 'canonical'
+    document.head.appendChild(canonical)
+  }
+  canonical.href = canonicalHref
+}
+
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
@@ -90,6 +130,7 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
+  applySeoMeta(to)
   next()
 })
 

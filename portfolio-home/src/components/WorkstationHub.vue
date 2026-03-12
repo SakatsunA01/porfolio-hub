@@ -933,6 +933,10 @@ const onConsoleTouchEnd = () => {
   mobileSheetStartY.value = null
 }
 
+const openCv = () => {
+  window.open('/cv_2026_SergioQuinteros.pdf', '_blank', 'noopener,noreferrer')
+}
+
 const stopRewindInterval = () => {
   if (rewindInterval) {
     clearInterval(rewindInterval)
@@ -1255,7 +1259,7 @@ onBeforeUnmount(() => {
                 <p class="mt-1 text-sm leading-relaxed text-slate-700">{{ proyectoActivo.impact }}</p>
               </article>
 
-              <button class="cv-btn mt-4 w-full">{{ t.downloadCv }}</button>
+              <button class="cv-btn mt-4 w-full" @click="openCv">{{ t.downloadCv }}</button>
 
                 <article v-if="!isMobileViewport"
                   class="rack-block mt-3 rounded-lg border border-slate-300/80 bg-slate-100/70 p-3">

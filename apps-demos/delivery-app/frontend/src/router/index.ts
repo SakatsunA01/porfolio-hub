@@ -197,6 +197,23 @@ const router = createRouter({
   ],
 })
 
+const SEO_ORIGIN = (import.meta.env.VITE_CANONICAL_ORIGIN || 'https://delivery.labarcaministerio.com').replace(/\/$/, '')
+
+const applySeoMeta = (to: any) => {
+  const routeLabel = typeof to.meta?.label === 'string' ? to.meta.label : ''
+  const title = routeLabel ? `${routeLabel} | Dunamis Delivery` : 'Dunamis Delivery | Multi-role Operations'
+  document.title = title
+
+  const canonicalHref = `${SEO_ORIGIN}${to.fullPath || '/'}`
+  let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+  if (!canonical) {
+    canonical = document.createElement('link')
+    canonical.rel = 'canonical'
+    document.head.appendChild(canonical)
+  }
+  canonical.href = canonicalHref
+}
+
 router.beforeEach((to) => {
   const user = loadUser()
   const isPublic = Boolean(to.meta.public)
@@ -227,8 +244,10 @@ router.beforeEach((to) => {
   }
 
   if (!isPublic) {
+    applySeoMeta(to)
     return true
   }
+  applySeoMeta(to)
   return true
 })
 
